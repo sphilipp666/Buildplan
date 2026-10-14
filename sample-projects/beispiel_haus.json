@@ -1,0 +1,11 @@
+{
+  "id": "beispiel_haus",
+  "schematic": "beispiel_haus.schem",
+  "origin": {
+    "x": 100,
+    "y": 64,
+    "z": -250
+  },
+  "rotation": 0,
+  "unlocked": true
+}

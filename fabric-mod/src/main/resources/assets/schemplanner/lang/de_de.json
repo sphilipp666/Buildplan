@@ -1,0 +1,18 @@
+{
+  "category.schemplanner": "Bauplaner",
+  "key.schemplanner.layer_up": "Ebene nach oben (Layer +1)",
+  "key.schemplanner.layer_down": "Ebene nach unten (Layer -1)",
+  "key.schemplanner.layer_toggle": "Ebenen-Filter ein/aus",
+  "key.schemplanner.material_list": "Material-To-Do-Liste öffnen",
+  "key.schemplanner.reload": "Baupläne neu laden",
+  "gui.schemplanner.title": "Bauplan Materialliste",
+  "gui.schemplanner.required": "Soll",
+  "gui.schemplanner.inventory": "Im Inventar",
+  "gui.schemplanner.missing": "Fehlt",
+  "gui.schemplanner.search": "Material suchen...",
+  "gui.schemplanner.filter_missing": "Nur Fehlende",
+  "gui.schemplanner.filter_all": "Alle Blöcke",
+  "msg.schemplanner.layer_all": "§b[Bauplan] §fEbenen-Filter: §aAlle Ebenen sichtbar",
+  "msg.schemplanner.layer_set": "§b[Bauplan] §fAktive Ebene: §eY = %s",
+  "msg.schemplanner.reloaded": "§b[Bauplan] §a%s Baupläne erfolgreich geladen."
+}

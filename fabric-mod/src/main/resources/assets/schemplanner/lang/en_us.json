@@ -1,0 +1,18 @@
+{
+  "category.schemplanner": "SchemPlanner",
+  "key.schemplanner.layer_up": "Layer Up (Y +1)",
+  "key.schemplanner.layer_down": "Layer Down (Y -1)",
+  "key.schemplanner.layer_toggle": "Toggle Layer Filter",
+  "key.schemplanner.material_list": "Open Material To-Do List",
+  "key.schemplanner.reload": "Reload Projects",
+  "gui.schemplanner.title": "Build Plan Material List",
+  "gui.schemplanner.required": "Required",
+  "gui.schemplanner.inventory": "In Inventory",
+  "gui.schemplanner.missing": "Missing",
+  "gui.schemplanner.search": "Search materials...",
+  "gui.schemplanner.filter_missing": "Only Missing",
+  "gui.schemplanner.filter_all": "All Blocks",
+  "msg.schemplanner.layer_all": "§b[SchemPlanner] §fLayer Filter: §aAll Layers Visible",
+  "msg.schemplanner.layer_set": "§b[SchemPlanner] §fActive Layer: §eY = %s",
+  "msg.schemplanner.reloaded": "§b[SchemPlanner] §a%s projects loaded successfully."
+}

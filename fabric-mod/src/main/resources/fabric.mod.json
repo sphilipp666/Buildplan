@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "schemplanner",
+  "version": "${version}",
+  "name": "Schematic Build Planner",
+  "description": "Visuelle Bauplanung, Hologramm-Ghost-Rendering und Material-To-Do-Listen fuer Sponge Schematics.",
+  "authors": [
+    "Buildplan Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/sphilipp666/Buildplan"
+  },
+  "license": "MIT",
+  "icon": "assets/schemplanner/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.schemplanner.SchemPlannerClient"
+    ]
+  },
+  "mixins": [
+    "schemplanner.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

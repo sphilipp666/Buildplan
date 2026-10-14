@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Bauplaner (Web-Planer 3D)</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Pako fallback for fast client-side GZIP decompression -->
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+</head>
+<body>
+    <div id="app-layout">
+        <!-- Sidebar Controls & Config -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <span class="brand-icon">📐</span>
+                    <div>
+                        <h1>Bauplaner 3D</h1>
+                        <span class="brand-badge">Minecraft Fabric 26.2</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- 1. Drag & Drop Upload -->
+                <div class="drop-zone" id="drop-zone">
+                    <span class="drop-icon">📦</span>
+                    <div class="drop-title">Schematic (.schem) ablegen</div>
+                    <div class="drop-sub">oder klicken zum Auswählen</div>
+                    <input type="file" id="file-input" accept=".schem,.schematic" style="display: none;">
+                </div>
+
+                <button class="btn btn-secondary" id="btn-sample">
+                    <span>🏠</span> Beispiel-Haus laden
+                </button>
+
+                <!-- 2. Project Metadata & Placement -->
+                <div class="control-card">
+                    <div class="card-title">Projekt-Einstellungen</div>
+
+                    <div class="form-group">
+                        <label for="input-id">Projekt-ID (Dateiname)</label>
+                        <input type="text" id="input-id" value="bauplan_projekt" placeholder="z. B. rathaus_nord">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ziel-Koordinaten (Origin X, Y, Z)</label>
+                        <div class="coord-grid">
+                            <div class="coord-input coord-x">
+                                <span>X (Ost)</span>
+                                <input type="number" id="input-origin-x" value="100" step="1">
+                            </div>
+                            <div class="coord-input coord-y">
+                                <span>Y (Höhe)</span>
+                                <input type="number" id="input-origin-y" value="64" step="1">
+                            </div>
+                            <div class="coord-input coord-z">
+                                <span>Z (Süd)</span>
+                                <input type="number" id="input-origin-z" value="-250" step="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-rotation">Drehung (Rotation in 90°-Schritten)</label>
+                        <select id="input-rotation">
+                            <option value="0">0° (Standard)</option>
+                            <option value="90">90° im Uhrzeigersinn</option>
+                            <option value="180">180°</option>
+                            <option value="270">270° (90° gegen Uhrzeigersinn)</option>
+                        </select>
+                    </div>
+
+                    <div class="checkbox-row">
+                        <span class="switch-label">Im Spiel freigeschaltet (unlocked)</span>
+                        <input type="checkbox" id="input-unlocked" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    </div>
+                </div>
+
+                <!-- 3. Layer by Layer Slicing -->
+                <div class="control-card">
+                    <div class="card-title">
+                        <span>Ebenen-Filter (Layer)</span>
+                        <span id="layer-value" class="brand-badge">Alle Ebenen</span>
+                    </div>
+                    <div class="slider-container">
+                        <input type="range" id="layer-slider" min="0" max="50" value="50">
+                        <div class="slider-header">
+                            <span>Boden</span>
+                            <span>Dach</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Schematic Metadata & Info -->
+                <div class="control-card" id="info-card" style="display: none;">
+                    <div class="card-title">Schematic Info</div>
+                    <div class="info-row">
+                        <span>Datei:</span>
+                        <span class="val" id="info-filename">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Abmessungen (B x H x L):</span>
+                        <span class="val" id="info-dimensions">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span>Gesetzte Blöcke:</span>
+                        <span class="val" id="info-blocks">-</span>
+                    </div>
+                </div>
+
+                <!-- 5. Material Breakdown Table -->
+                <div class="control-card">
+                    <div class="card-title">
+                        <span>Material-Bedarf</span>
+                        <span id="total-materials-count" class="brand-badge">0 Typen</span>
+                    </div>
+                    <div class="materials-table-wrapper">
+                        <table class="materials-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 24px;"></th>
+                                    <th>Block</th>
+                                    <th class="text-right">Menge</th>
+                                </tr>
+                            </thead>
+                            <tbody id="materials-table-body">
+                                <tr><td colspan="3" class="text-muted" style="text-align: center; padding: 12px;">Keine Daten</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Actions -->
+            <div class="sidebar-footer">
+                <button class="btn btn-accent" id="btn-export">
+                    <span>💾</span> Projekt-JSON exportieren
+                </button>
+                <button class="btn btn-secondary" id="btn-download-schem" title="Lädt die hochgeladene Schematic herunter">
+                    <span>📥</span> Schematic (.schem) sichern
+                </button>
+            </div>
+        </aside>
+
+        <!-- 3D Viewport -->
+        <main id="viewport-container">
+            <div id="canvas-container"></div>
+
+            <!-- Viewport Overlay HUD -->
+            <div class="viewport-hud">
+                <div class="hud-pill">
+                    <span>📍</span>
+                    <span>Transform-Gizmo aktiv (am Origin)</span>
+                </div>
+                <button class="hud-btn" id="btn-reset-cam">
+                    <span>🎯</span> Kamera zentrieren
+                </button>
+            </div>
+
+            <div class="viewport-help">
+                <strong>Steuerung:</strong><br>
+                • Linksklick + Ziehen: Drehen<br>
+                • Rechtsklick + Ziehen: Schwenken (Pan)<br>
+                • Mausrad: Zoomen<br>
+                • Pfeile am Gizmo: Ganzzahlige Koordinaten verschieben
+            </div>
+        </main>
+    </div>
+
+    <!-- Application Module Script -->
+    <script type="module" src="app.js"></script>
+    <script>
+        // Trigger file input on click of dropzone
+        document.getElementById('drop-zone').addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
+    </script>
+</body>
+</html>
