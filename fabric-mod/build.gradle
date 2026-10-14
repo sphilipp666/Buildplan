@@ -25,6 +25,17 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
+loom {
+    runs {
+        client {
+            client()
+            setConfigName("Fabric Client 26.2")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+    }
+}
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", project.minecraft_version

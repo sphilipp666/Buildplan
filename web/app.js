@@ -3,7 +3,7 @@ import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/exampl
 import { TransformControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/TransformControls.js';
 import { parseSpongeSchematic } from './nbt.js';
 import { getBlockColor, isBlockTransparent } from './palette.js';
-import { createSampleCottage } from './sample.js';
+import { createSampleCottage, createTestCube } from './sample.js';
 
 // Application State
 const state = {
@@ -36,6 +36,7 @@ const inputUnlocked = document.getElementById('input-unlocked');
 const btnExport = document.getElementById('btn-export');
 const btnDownloadSchem = document.getElementById('btn-download-schem');
 const btnSample = document.getElementById('btn-sample');
+const btnTestCube = document.getElementById('btn-test-cube');
 const btnResetCam = document.getElementById('btn-reset-cam');
 const layerSlider = document.getElementById('layer-slider');
 const layerValueBadge = document.getElementById('layer-value');
@@ -481,6 +482,11 @@ function initEventListeners() {
         loadSampleData();
     });
 
+    // Test Cube Button
+    btnTestCube.addEventListener('click', () => {
+        loadTestCubeData();
+    });
+
     // Export Project JSON Button
     btnExport.addEventListener('click', exportProjectJson);
 
@@ -542,6 +548,24 @@ function loadSampleData() {
 
     renderSchematicVoxels(sample);
     updateUI(sample);
+}
+
+function loadTestCubeData() {
+    const cube = createTestCube();
+    state.schematicData = cube;
+    state.schematicFilename = 'test.schem';
+    state.projectId = 'test_project';
+    state.origin = { x: 0, y: 70, z: 0 };
+    state.rotation = 0;
+    state.unlocked = true;
+
+    inputId.value = state.projectId;
+    inputUnlocked.checked = true;
+    updateOriginInputs();
+    inputRotation.value = "0";
+
+    renderSchematicVoxels(cube);
+    updateUI(cube);
 }
 
 // ---------------------------------------------------------------------

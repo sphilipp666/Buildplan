@@ -1,0 +1,11 @@
+{
+  "id": "test_project",
+  "schematic": "test.schem",
+  "origin": {
+    "x": 0,
+    "y": 70,
+    "z": 0
+  },
+  "rotation": 0,
+  "unlocked": true
+}

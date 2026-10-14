@@ -147,5 +147,35 @@ Diese Datei einfach in den `.minecraft/mods/` Ordner kopieren.
 
 ---
 
+## Schnellanleitung & Singleplayer-Test
+
+### 1. Web-Planer lokal starten
+Führe im Hauptverzeichnis einfach aus:
+- **Windows:** `start-web.bat` (oder `python -m http.server 8080 --directory web`)
+- **Linux/macOS:** `./start-web.sh`
+- Öffne `http://localhost:8080` im Browser.
+- Klicke auf **"🎲 3x3 Test-Würfel"**, um die Testdaten zu visualisieren und mit Klick auf **"Projekt-JSON exportieren"** die passende `test_project.json` zu erhalten.
+
+### 2. Mod im Test-Client starten (1-Klick-Start)
+- **Windows:** `test-run.bat`
+- **Linux/macOS:** `./test-run.sh`
+*Das Skript stellt sicher, dass die Test-Schematic (`test.schem`) und Konfiguration (`test_project.json`) in `fabric-mod/run/config/schemplanner/projects/` liegen, führt den Build durch und startet den Client (`runClient`).*
+
+### 3. Checkliste für den Singleplayer-Test
+1. **Neue Welt erstellen:** Singleplayer-Welt erstellen (Kreativ- oder Überlebensmodus).
+2. **Teleportieren:** In den Chat eingeben:
+   `/tp 0 70 0`
+3. **Ghost-Hologramm begutachten:**
+   - Bei Koordinate `(0, 70, 0)` erscheint der 3x3 Würfel (Steinboden, Eichenstämme an den Ecken, Eichenholzbretter) als semitransparentes Ghost-Hologramm.
+4. **Layer-by-Layer-Steuerung testen:**
+   - Drücke **Bild-Auf (Page Up)** und **Bild-Ab (Page Down)**: Die angezeigten Schichten filtern sich stufenweise (Chat-Nachricht bestätigt die aktive Y-Ebene).
+   - Drücke **Pos1 / Home**: Schaltet zwischen dem Ebenenfilter und allen Ebenen um.
+5. **Echtzeit-Blockvergleich testen:**
+   - Setze an einer Ghost-Position einen korrekten Block (z. B. Eichenholzbretter): Der Ghost-Block verschwindet an dieser Stelle.
+   - Setze an einer Ghost-Position einen falschen Block (z. B. Schmutz/Dirt): Eine rote Warn-Kontur markiert den Fehler.
+6. **Materialliste & Inventarabgleich testen:**
+   - Drücke **M**: Die To-Do-Liste öffnet sich (benötigt: 13 Oak Planks, 9 Stone, 4 Oak Log).
+   - Nimm z. B. 13 Eichenholzbretter ins Inventar und öffne erneut **M**: Der Eintrag wechselt sofort auf Grün (`✔ Vorhanden`).
+
 ## Lizenz
 MIT License - Frei verwendbar für private und öffentliche Minecraft-Server.

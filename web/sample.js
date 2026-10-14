@@ -99,3 +99,72 @@ export function createSampleCottage() {
         })).sort((a, b) => b.count - a.count)
     };
 }
+
+/**
+ * 3x3 Test Cube Generator matching the singleplayer test fixture (test.schem)
+ */
+export function createTestCube() {
+    const width = 3;
+    const height = 3;
+    const length = 3;
+
+    const voxels = [];
+    const materialCounts = new Map();
+
+    function addBlock(x, y, z, block) {
+        voxels.push({
+            x,
+            y,
+            z,
+            state: block,
+            block: block.split('[')[0],
+            paletteId: 1
+        });
+        const clean = block.split('[')[0];
+        materialCounts.set(clean, (materialCounts.get(clean) || 0) + 1);
+    }
+
+    // Layer 0: 3x3 Stone
+    for (let x = 0; x < width; x++) {
+        for (let z = 0; z < length; z++) {
+            addBlock(x, 0, z, 'minecraft:stone');
+        }
+    }
+
+    // Layer 1: Corners oak_log, sides oak_planks, center air
+    for (let x = 0; x < width; x++) {
+        for (let z = 0; z < length; z++) {
+            const isCorner = (x === 0 || x === 2) && (z === 0 || z === 2);
+            const isCenter = (x === 1 && z === 1);
+            if (isCorner) {
+                addBlock(x, 1, z, 'minecraft:oak_log');
+            } else if (!isCenter) {
+                addBlock(x, 1, z, 'minecraft:oak_planks');
+            }
+        }
+    }
+
+    // Layer 2: 3x3 Oak Planks
+    for (let x = 0; x < width; x++) {
+        for (let z = 0; z < length; z++) {
+            addBlock(x, 2, z, 'minecraft:oak_planks');
+        }
+    }
+
+    return {
+        width,
+        height,
+        length,
+        totalBlocks: width * height * length,
+        activeBlockCount: voxels.length,
+        offset: [0, 0, 0],
+        voxels,
+        materialCounts: Array.from(materialCounts.entries()).map(([block, count]) => ({
+            block,
+            name: block.replace('minecraft:', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            count,
+            stacks: Math.floor(count / 64),
+            remainder: count % 64
+        })).sort((a, b) => b.count - a.count)
+    };
+}
