@@ -27,6 +27,7 @@ let gridHelper, schematicGroup, originMarker;
 let solidInstancedMesh = null;
 let transparentInstancedMesh = null;
 let bboxHelper = null;
+let terrainMesh = null;
 
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
@@ -45,6 +46,8 @@ const btnExport = document.getElementById('btn-export');
 const btnDownloadSchem = document.getElementById('btn-download-schem');
 const btnSample = document.getElementById('btn-sample');
 const btnTestCube = document.getElementById('btn-test-cube');
+const btnSingleplayer = document.getElementById('btn-singleplayer');
+const btnToggleTerrain = document.getElementById('btn-toggle-terrain');
 const btnResetCam = document.getElementById('btn-reset-cam');
 const layerSlider = document.getElementById('layer-slider');
 const layerValueBadge = document.getElementById('layer-value');
@@ -61,8 +64,8 @@ window.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     animate();
 
-    // Load sample automatically on first start
-    loadSampleData();
+    // Load Singleplayer World Data by default
+    loadSingleplayerWorldData();
 });
 
 function initThree() {
@@ -360,11 +363,19 @@ function frameCameraOnSchematic(schemData) {
 
     orbitControls.target.set(cx, cy, cz);
 
-    const maxDim = Math.max(schemData.width, schemData.height, schemData.length);
+    const maxDim = Math.max(schemData.width, schemData.height, schemData.length, 12);
     const dist = maxDim * 2.2;
     camera.position.set(cx + dist * 0.7, cy + dist * 0.8, cz + dist * 0.7);
     camera.lookAt(cx, cy, cz);
     orbitControls.update();
+
+    if (gridHelper) {
+        gridHelper.position.set(
+            Math.round(state.origin.x / 16) * 16,
+            state.origin.y - 0.01,
+            Math.round(state.origin.z / 16) * 16
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -522,6 +533,25 @@ function initEventListeners() {
         loadTestCubeData();
     });
 
+    // Singleplayer Button
+    if (btnSingleplayer) {
+        btnSingleplayer.addEventListener('click', () => {
+            loadSingleplayerWorldData();
+        });
+    }
+
+    // Toggle Terrain Button
+    if (btnToggleTerrain) {
+        btnToggleTerrain.addEventListener('click', () => {
+            if (terrainMesh) {
+                terrainMesh.visible = !terrainMesh.visible;
+                btnToggleTerrain.innerHTML = terrainMesh.visible
+                    ? '<span>⛰️</span> Terrain: An'
+                    : '<span>⛰️</span> Terrain: Aus';
+            }
+        });
+    }
+
     // Export Project JSON Button
     btnExport.addEventListener('click', exportProjectJson);
 
@@ -607,6 +637,96 @@ function loadTestCubeData() {
 
     renderSchematicVoxels(cube);
     updateUI(cube);
+}
+
+async function loadWorldTerrainMesh() {
+    if (terrainMesh) {
+        scene.remove(terrainMesh);
+        terrainMesh.geometry.dispose();
+        terrainMesh.material.dispose();
+        terrainMesh = null;
+    }
+
+    try {
+        const resp = await fetch('singleplayer_world.json');
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const w = data.gridWidth;
+        const l = data.gridLength;
+        const heights = data.heights;
+
+        // PlaneGeometry: width, height, widthSegments, heightSegments
+        const planeGeo = new THREE.PlaneGeometry(w, l, w - 1, l - 1);
+        planeGeo.rotateX(-Math.PI / 2); // Lay horizontal (XZ plane)
+
+        const posAttr = planeGeo.attributes.position;
+        for (let i = 0; i < posAttr.count; i++) {
+            if (i < heights.length) {
+                posAttr.setY(i, heights[i]);
+            }
+        }
+        planeGeo.computeVertexNormals();
+
+        // Shaded Minecraft grass/dirt terrain material
+        const terrainMat = new THREE.MeshLambertMaterial({
+            color: 0x487532, // Minecraft lush grass green
+            wireframe: false,
+            flatShading: true
+        });
+
+        terrainMesh = new THREE.Mesh(planeGeo, terrainMat);
+        const centerX = data.minX + w / 2;
+        const centerZ = data.minZ + l / 2;
+        terrainMesh.position.set(centerX, 0, centerZ);
+        scene.add(terrainMesh);
+
+        console.log('[Terrain] 3D Singleplayer Welt erfolgreich geladen!');
+    } catch (e) {
+        console.warn('[Terrain] Konnte Welt-Terrain nicht laden:', e);
+    }
+}
+
+async function loadSingleplayerWorldData() {
+    try {
+        dropZone.querySelector('.drop-title').textContent = 'Lade Singleplayer-Welt...';
+        const resp = await fetch('mein_bauwerk.schem');
+        if (!resp.ok) throw new Error('mein_bauwerk.schem nicht gefunden');
+        const arrayBuffer = await resp.arrayBuffer();
+        const schemData = await parseSpongeSchematic(arrayBuffer);
+
+        state.schematicData = schemData;
+        state.uploadedFileBlob = new Blob([arrayBuffer]);
+        state.schematicFilename = 'mein_bauwerk.schem';
+        state.projectId = 'mein_bauwerk';
+        state.title = 'Mein Bauwerk (New World)';
+        state.origin = { x: 237, y: -60, z: -443 };
+        state.rotation = 270;
+        state.unlocked = true;
+
+        inputId.value = state.projectId;
+        if (inputTitle) inputTitle.value = state.title;
+        inputOriginX.value = state.origin.x;
+        inputOriginY.value = state.origin.y;
+        inputOriginZ.value = state.origin.z;
+        inputRotation.value = '270';
+        inputUnlocked.checked = true;
+
+        // Render terrain from singleplayer world
+        await loadWorldTerrainMesh();
+
+        // Render voxels
+        renderSchematicVoxels(schemData);
+        updateUI(schemData);
+        frameCameraOnSchematic(schemData);
+
+        dropZone.querySelector('.drop-title').textContent = 'Singleplayer-Bauwerk geladen!';
+        setTimeout(() => {
+            dropZone.querySelector('.drop-title').textContent = 'Schematic (.schem) ablegen';
+        }, 1500);
+    } catch (e) {
+        console.error('Fehler beim Laden der Singleplayer-Welt:', e);
+    }
 }
 
 // ---------------------------------------------------------------------
