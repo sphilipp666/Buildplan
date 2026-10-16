@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minecraft Bauplaner (Web-Planer 3D)</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Pako fallback for fast client-side GZIP decompression -->
+    <!-- Pako for fast client-side GZIP decompression -->
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <!-- Prismarine-NBT via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/prismarine-nbt@2.6.0/dist/index.min.js"></script>
 </head>
 <body>
     <div id="app-layout">
@@ -47,6 +49,31 @@
                     <div class="form-group">
                         <label for="input-id">Projekt-ID (Dateiname)</label>
                         <input type="text" id="input-id" value="bauplan_projekt" placeholder="z. B. rathaus_nord">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-title">Titel / Bezeichnung</label>
+                        <input type="text" id="input-title" value="Demo Bauwerk" placeholder="z. B. Großes Rathaus Nordflügel">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div class="form-group">
+                            <label for="input-owner">Bauleiter (Owner)</label>
+                            <input type="text" id="input-owner" value="Philipp" placeholder="z. B. Philipp">
+                        </div>
+                        <div class="form-group">
+                            <label for="input-status">Status</label>
+                            <select id="input-status">
+                                <option value="PLANNED">🟡 Geplant</option>
+                                <option value="IN_PROGRESS" selected>🟠 Im Bau</option>
+                                <option value="COMPLETED">🟢 Fertig</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="input-assigned">Zuständige Spieler (mit Komma trennen)</label>
+                        <input type="text" id="input-assigned" value="Philipp" placeholder="z. B. Philipp, Alex, Jonas (leer = alle)">
                     </div>
 
                     <div class="form-group">

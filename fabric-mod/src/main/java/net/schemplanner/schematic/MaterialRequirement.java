@@ -1,11 +1,11 @@
 package net.schemplanner.schematic;
 
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 /**
- * Tracks the required, current and missing quantity for an item.
+ * Tracks the required, current and missing quantity for an item in Minecraft 26.2.
  */
 public class MaterialRequirement {
     private final Item item;
@@ -31,12 +31,12 @@ public class MaterialRequirement {
     /**
      * Counts how many of this item are currently present in the player's inventory.
      */
-    public int countInInventory(PlayerInventory inventory) {
+    public int countInInventory(Inventory inventory) {
         if (inventory == null) return 0;
         int count = 0;
-        for (int i = 0; i < inventory.size(); i++) {
-            ItemStack stack = inventory.getStack(i);
-            if (!stack.isEmpty() && stack.isOf(item)) {
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (!stack.isEmpty() && stack.is(item)) {
                 count += stack.getCount();
             }
         }
@@ -46,12 +46,12 @@ public class MaterialRequirement {
     /**
      * Calculates how many items are still needed.
      */
-    public int getMissingCount(PlayerInventory inventory) {
+    public int getMissingCount(Inventory inventory) {
         int inInv = countInInventory(inventory);
         return Math.max(0, requiredCount - inInv);
     }
 
-    public boolean isComplete(PlayerInventory inventory) {
+    public boolean isComplete(Inventory inventory) {
         return countInInventory(inventory) >= requiredCount;
     }
 }

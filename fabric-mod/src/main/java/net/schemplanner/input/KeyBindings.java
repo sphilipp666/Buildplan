@@ -1,56 +1,109 @@
 package net.schemplanner.input;
 
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Keybindings for layer navigation, reload and material list UI.
+ * Keybindings for layer navigation, reload, material list UI, and Free-Walk placement mode.
  */
 public class KeyBindings {
-    public static final String KEY_CATEGORY = "category.schemplanner";
+    public static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Identifier.parse("schemplanner:general"));
 
-    public static KeyBinding keyLayerUp;
-    public static KeyBinding keyLayerDown;
-    public static KeyBinding keyLayerToggle;
-    public static KeyBinding keyMaterialList;
-    public static KeyBinding keyReload;
+    public static KeyMapping keyLayerUp;
+    public static KeyMapping keyLayerDown;
+    public static KeyMapping keyLayerToggle;
+    public static KeyMapping keyMaterialList;
+    public static KeyMapping keyPlacement;
+    public static KeyMapping keyReload;
+
+    // Free-Walk Placement Hotkeys
+    public static KeyMapping keyRotate;
+    public static KeyMapping keySnapTarget;
+    public static KeyMapping keyConfirmPlacement;
+
+    // Area Selection / Copy Hotkeys
+    public static KeyMapping keySelectPos1;
+    public static KeyMapping keySelectPos2;
 
     public static void register() {
-        keyLayerUp = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyLayerUp = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.schemplanner.layer_up",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_PAGE_UP,
-                KEY_CATEGORY
+                CATEGORY
         ));
 
-        keyLayerDown = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyLayerDown = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.schemplanner.layer_down",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_PAGE_DOWN,
-                KEY_CATEGORY
+                CATEGORY
         ));
 
-        keyLayerToggle = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyLayerToggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.schemplanner.layer_toggle",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_HOME,
-                KEY_CATEGORY
+                CATEGORY
         ));
 
-        keyMaterialList = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyMaterialList = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.schemplanner.material_list",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_M,
-                KEY_CATEGORY
+                CATEGORY
         ));
 
-        keyReload = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        keyPlacement = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.placement",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_P,
+                CATEGORY
+        ));
+
+        keyReload = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.schemplanner.reload",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_F10,
-                KEY_CATEGORY
+                CATEGORY
+        ));
+
+        keyRotate = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.rotate",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_R,
+                CATEGORY
+        ));
+
+        keySnapTarget = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.snap_target",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_C,
+                CATEGORY
+        ));
+
+        keyConfirmPlacement = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.confirm",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_ENTER,
+                CATEGORY
+        ));
+
+        keySelectPos1 = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.select_pos1",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_V,
+                CATEGORY
+        ));
+
+        keySelectPos2 = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.schemplanner.select_pos2",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_B,
+                CATEGORY
         ));
     }
 }

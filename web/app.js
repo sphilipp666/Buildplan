@@ -8,7 +8,11 @@ import { createSampleCottage, createTestCube } from './sample.js';
 // Application State
 const state = {
     projectId: 'bauplan_projekt',
+    title: 'Demo Bauwerk',
     schematicFilename: 'bauplan_projekt.schem',
+    owner: 'Philipp',
+    assignedPlayers: ['Philipp'],
+    status: 'IN_PROGRESS',
     origin: { x: 100, y: 64, z: -250 },
     rotation: 0, // 0, 90, 180, 270
     unlocked: true,
@@ -28,6 +32,10 @@ let bboxHelper = null;
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const inputId = document.getElementById('input-id');
+const inputTitle = document.getElementById('input-title');
+const inputOwner = document.getElementById('input-owner');
+const inputStatus = document.getElementById('input-status');
+const inputAssigned = document.getElementById('input-assigned');
 const inputOriginX = document.getElementById('input-origin-x');
 const inputOriginY = document.getElementById('input-origin-y');
 const inputOriginZ = document.getElementById('input-origin-z');
@@ -437,6 +445,33 @@ function initEventListeners() {
         state.projectId = e.target.value.trim() || 'bauplan_projekt';
     });
 
+    if (inputTitle) {
+        inputTitle.addEventListener('input', (e) => {
+            state.title = e.target.value.trim() || state.projectId;
+        });
+    }
+
+    if (inputOwner) {
+        inputOwner.addEventListener('input', (e) => {
+            state.owner = e.target.value.trim();
+        });
+    }
+
+    if (inputStatus) {
+        inputStatus.addEventListener('change', (e) => {
+            state.status = e.target.value;
+        });
+    }
+
+    if (inputAssigned) {
+        inputAssigned.addEventListener('input', (e) => {
+            state.assignedPlayers = e.target.value
+                .split(',')
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+        });
+    }
+
     // Inputs: Origin Coordinates
     [inputOriginX, inputOriginY, inputOriginZ].forEach(input => {
         input.addEventListener('change', () => {
@@ -517,10 +552,12 @@ async function handleFile(file) {
         state.uploadedFileBlob = new Blob([arrayBuffer]);
         state.schematicFilename = file.name;
 
-        // Auto-generate project ID from filename without extension
+        // Auto-generate project ID & title from filename without extension
         const baseName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
         state.projectId = baseName;
+        state.title = file.name.replace(/\.[^/.]+$/, "").replace(/[_ -]+/g, " ");
         inputId.value = baseName;
+        if (inputTitle) inputTitle.value = state.title;
 
         renderSchematicVoxels(schemData);
         updateUI(schemData);
@@ -544,7 +581,9 @@ function loadSampleData() {
     state.schematicData = sample;
     state.schematicFilename = 'beispiel_haus.schem';
     state.projectId = 'beispiel_haus';
+    state.title = 'Beispiel Haus';
     inputId.value = state.projectId;
+    if (inputTitle) inputTitle.value = state.title;
 
     renderSchematicVoxels(sample);
     updateUI(sample);
@@ -555,11 +594,13 @@ function loadTestCubeData() {
     state.schematicData = cube;
     state.schematicFilename = 'test.schem';
     state.projectId = 'test_project';
+    state.title = 'Test Würfel';
     state.origin = { x: 0, y: 70, z: 0 };
     state.rotation = 0;
     state.unlocked = true;
 
     inputId.value = state.projectId;
+    if (inputTitle) inputTitle.value = state.title;
     inputUnlocked.checked = true;
     updateOriginInputs();
     inputRotation.value = "0";
@@ -573,9 +614,18 @@ function loadTestCubeData() {
 // ---------------------------------------------------------------------
 
 function exportProjectJson() {
+    const assigned = (inputAssigned ? inputAssigned.value : '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
     const exportObject = {
         id: state.projectId,
+        title: (inputTitle && inputTitle.value.trim()) ? inputTitle.value.trim() : (state.title || state.projectId),
         schematic: state.schematicFilename,
+        owner: (inputOwner && inputOwner.value.trim()) ? inputOwner.value.trim() : (state.owner || ''),
+        assignedPlayers: assigned,
+        status: (inputStatus ? inputStatus.value : (state.status || 'PLANNED')),
         origin: {
             x: state.origin.x,
             y: state.origin.y,

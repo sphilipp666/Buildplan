@@ -1,30 +1,38 @@
 package net.schemplanner.render;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.*;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.block.BlockModelRenderState;
+import net.minecraft.client.renderer.block.BlockModelResolver;
+import net.minecraft.client.renderer.block.model.BlockDisplayContext;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gizmos.GizmoStyle;
+import net.minecraft.gizmos.Gizmos;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.schemplanner.config.ProjectManager;
+import net.schemplanner.placement.PlacementSession;
 import net.schemplanner.schematic.PlannedBlock;
+import net.schemplanner.schematic.SpongeSchematic;
+import net.schemplanner.selection.AreaSelectionManager;
 
 import java.util.List;
 
 /**
- * Handles in-game translucent ghost hologram rendering and layer-by-layer filtering for Fabric 26.2.
+ * Handles in-game 3D textured block hologram rendering, layer-by-layer filtering, and bounding box visualization.
+ * Ensures textured models are always rendered even when intersecting terrain.
  */
 public class GhostBlockRenderer {
-    /**
-     * Static layer filter Y level.
-     * Blocks with Y > currentLayerY will be hidden.
-     * Integer.MAX_VALUE means all layers are rendered.
-     */
     public static int currentLayerY = Integer.MAX_VALUE;
-
-    // Maximum distance from camera to render ghost blocks (in blocks)
     private static final double MAX_RENDER_DISTANCE_SQ = 96.0 * 96.0;
+
+    // Reusable render helper instances
+    private static BlockModelResolver blockModelResolver;
+    private static final BlockModelRenderState modelRenderState = new BlockModelRenderState();
+    private static final BlockDisplayContext displayContext = BlockDisplayContext.create();
 
     public static boolean isLayerFilterActive() {
         return currentLayerY != Integer.MAX_VALUE;
@@ -34,9 +42,9 @@ public class GhostBlockRenderer {
         if (isLayerFilterActive()) {
             currentLayerY = Integer.MAX_VALUE;
         } else {
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client.player != null) {
-                currentLayerY = client.player.getBlockY();
+                currentLayerY = client.player.blockPosition().getY();
             } else {
                 currentLayerY = 64;
             }
@@ -45,8 +53,8 @@ public class GhostBlockRenderer {
 
     public static void layerUp() {
         if (!isLayerFilterActive()) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            currentLayerY = (client.player != null) ? client.player.getBlockY() : 64;
+            Minecraft client = Minecraft.getInstance();
+            currentLayerY = (client.player != null) ? client.player.blockPosition().getY() : 64;
         } else {
             currentLayerY++;
         }
@@ -54,103 +62,129 @@ public class GhostBlockRenderer {
 
     public static void layerDown() {
         if (!isLayerFilterActive()) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            currentLayerY = (client.player != null) ? client.player.getBlockY() : 64;
+            Minecraft client = Minecraft.getInstance();
+            currentLayerY = (client.player != null) ? client.player.blockPosition().getY() : 64;
         } else {
             currentLayerY--;
         }
     }
 
-    /**
-     * Parameterless render entry point called from WorldRendererMixin.
-     */
-    public static void renderGhostBlocks() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null) return;
+    public static void render(LevelRenderContext context) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.level == null || client.player == null) return;
 
-        Camera camera = client.gameRenderer.getCamera();
-        if (camera == null) return;
+        List<ProjectManager.LoadedProject> projects = ProjectManager.getLoadedProjects();
+        if (projects.isEmpty()) return;
 
-        MatrixStack matrices = new MatrixStack();
-        renderGhostBlocks(matrices, camera);
-    }
-
-    public static void renderGhostBlocks(MatrixStack matrices, Camera camera) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world == null || client.player == null) return;
-
-        List<PlannedBlock> blocks = ProjectManager.getAllPlannedBlocks();
-        if (blocks.isEmpty()) return;
-
-        Vec3d camPos = camera.getPos();
-        VertexConsumerProvider.Immediate immediate = client.getBufferBuilders().getEntityVertexConsumers();
-        VertexConsumer translucentBuffer = immediate.getBuffer(RenderLayer.getTranslucent());
-        TranslucentVertexConsumer ghostConsumer = new TranslucentVertexConsumer(translucentBuffer, 140);
-
-        // Custom VertexConsumerProvider that routes block rendering through our semi-transparent consumer
-        VertexConsumerProvider ghostProvider = layer -> ghostConsumer;
-
-        matrices.push();
-        // Translate world matrix relative to camera position
-        matrices.translate(-camPos.x, -camPos.y, -camPos.z);
-
-        for (PlannedBlock planned : blocks) {
-            BlockPos pos = planned.worldPos();
-
-            // 1. Layer-by-Layer Culling
-            if (isLayerFilterActive() && pos.getY() > currentLayerY) {
-                continue;
-            }
-
-            // 2. Frustum / Distance Culling
-            double distSq = pos.getSquaredDistance(camPos.x, camPos.y, camPos.z);
-            if (distSq > MAX_RENDER_DISTANCE_SQ) {
-                continue;
-            }
-
-            BlockState worldState = client.world.getBlockState(pos);
-
-            // 3. Comparison with real world:
-            // Case A: Block is already placed correctly -> Skip
-            if (worldState.equals(planned.state())) {
-                continue;
-            }
-
-            // Case B: Wrong block is placed here -> Red outline warning
-            if (!worldState.isAir()) {
-                VertexConsumer lineConsumer = immediate.getBuffer(RenderLayer.getLines());
-                Box box = new Box(pos);
-                WorldRenderer.drawBox(matrices, lineConsumer, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, 1.0f, 0.2f, 0.2f, 0.9f);
-                continue;
-            }
-
-            // Case C: Air block -> Render Ghost Block
-            matrices.push();
-            matrices.translate(pos.getX(), pos.getY(), pos.getZ());
-
-            // Render translucent block model
-            client.getBlockRenderManager().renderBlockAsEntity(
-                    planned.state(),
-                    matrices,
-                    ghostProvider,
-                    LightmapTextureManager.MAX_LIGHT_COORDINATE,
-                    OverlayTexture.DEFAULT_UV
-            );
-
-            matrices.pop();
-
-            // If this block is on the active layer, draw subtle blueprint highlight outline
-            if (isLayerFilterActive() && pos.getY() == currentLayerY) {
-                VertexConsumer lineConsumer = immediate.getBuffer(RenderLayer.getLines());
-                Box box = new Box(pos);
-                WorldRenderer.drawBox(matrices, lineConsumer, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, 0.2f, 0.8f, 1.0f, 0.6f);
-            }
+        if (blockModelResolver == null) {
+            blockModelResolver = new BlockModelResolver(client.getModelManager());
         }
 
-        matrices.pop();
+        Vec3 camPos = client.gameRenderer.mainCamera().position();
+        double camX = camPos.x;
+        double camY = camPos.y;
+        double camZ = camPos.z;
 
-        // Flush immediate buffers
-        immediate.draw(RenderLayer.getTranslucent());
-        immediate.draw(RenderLayer.getLines());
+        PoseStack poseStack = context.poseStack();
+        if (poseStack == null) {
+            poseStack = new PoseStack();
+        }
+
+        try (var ignored = context.levelRenderer().collectPerFrameRenderThreadGizmos()) {
+            // 0. Render Area Selection (Copy Box)
+            BlockPos p1 = AreaSelectionManager.getPos1();
+            BlockPos p2 = AreaSelectionManager.getPos2();
+            if (p1 != null && p2 != null) {
+                BlockPos min = AreaSelectionManager.getMinPos();
+                BlockPos max = AreaSelectionManager.getMaxPos();
+                AABB selBox = new AABB(min.getX(), min.getY(), min.getZ(),
+                        max.getX() + 1, max.getY() + 1, max.getZ() + 1);
+                Gizmos.cuboid(selBox, GizmoStyle.stroke(0xFF00FFCC, 2.5f));
+                Gizmos.cuboid(p1, GizmoStyle.stroke(0xFF00FF66, 3.0f));
+                Gizmos.cuboid(p2, GizmoStyle.stroke(0xFF0088FF, 3.0f));
+            } else if (p1 != null) {
+                Gizmos.cuboid(p1, GizmoStyle.stroke(0xFF00FF66, 3.0f));
+            } else if (p2 != null) {
+                Gizmos.cuboid(p2, GizmoStyle.stroke(0xFF0088FF, 3.0f));
+            }
+
+            String playerName = (client.player != null) ? client.player.getName().getString() : null;
+            for (ProjectManager.LoadedProject proj : projects) {
+                if (!ProjectManager.isProjectVisibleForPlayer(proj, playerName)) continue;
+                SpongeSchematic schem = proj.schematic();
+                if (schem == null) continue;
+
+                boolean isSessionActive = PlacementSession.isActive() &&
+                        PlacementSession.getActiveProject().config().id.equals(proj.config().id);
+
+                // 1. Draw overall bounding box for the schematic
+                BlockPos origin = schem.getCurrentOrigin();
+                int w = schem.getRotatedWidth();
+                int h = schem.getHeight();
+                int l = schem.getRotatedLength();
+                AABB boundingBox = new AABB(origin.getX(), origin.getY(), origin.getZ(),
+                        origin.getX() + w, origin.getY() + h, origin.getZ() + l);
+
+                int boxColor = isSessionActive ? 0xFFFFBB00 : 0x88FFDD44;
+                float boxWidth = isSessionActive ? 2.5f : 1.5f;
+                Gizmos.cuboid(boundingBox, GizmoStyle.stroke(boxColor, boxWidth));
+
+                // 2. Render blocks
+                List<PlannedBlock> blocks = schem.getPlannedBlocks();
+                for (PlannedBlock planned : blocks) {
+                    BlockPos pos = planned.worldPos();
+
+                    // Layer culling
+                    if (isLayerFilterActive() && pos.getY() > currentLayerY) {
+                        continue;
+                    }
+
+                    // Distance culling
+                    double dx = pos.getX() + 0.5 - camX;
+                    double dy = pos.getY() + 0.5 - camY;
+                    double dz = pos.getZ() + 0.5 - camZ;
+                    if (dx * dx + dy * dy + dz * dz > MAX_RENDER_DISTANCE_SQ) {
+                        continue;
+                    }
+
+                    BlockState worldState = client.level.getBlockState(pos);
+
+                    // Case A: Correct block already placed -> Skip completely (already built!)
+                    if (worldState.equals(planned.state())) {
+                        continue;
+                    }
+
+                    // ALWAYS render real 3D textured block model (even if intersecting ground)
+                    if (context.submitNodeCollector() != null) {
+                        poseStack.pushPose();
+                        poseStack.translate(pos.getX() - camX, pos.getY() - camY, pos.getZ() - camZ);
+
+                        // Hologram effect: slight inset so it doesn't z-fight with adjacent blocks
+                        poseStack.translate(0.04f, 0.04f, 0.04f);
+                        poseStack.scale(0.92f, 0.92f, 0.92f);
+
+                        try {
+                            blockModelResolver.update(modelRenderState, planned.state(), displayContext);
+                            modelRenderState.submit(poseStack, context.submitNodeCollector(), 15728880, OverlayTexture.NO_OVERLAY, 0);
+                        } catch (Exception ignoredCatch) {
+                        }
+
+                        poseStack.popPose();
+                    }
+
+                    // Contextual outlines:
+                    boolean isActiveLayer = isLayerFilterActive() && (pos.getY() == currentLayerY);
+                    boolean isWrongBlock = !worldState.isAir();
+
+                    if (isWrongBlock) {
+                        // Red wireframe warning only if an incorrect block is occupying this spot
+                        Gizmos.cuboid(pos, GizmoStyle.stroke(0xFFFF2222, 2.0f));
+                    } else if (isActiveLayer) {
+                        // Cyan outline for active building layer
+                        Gizmos.cuboid(pos, GizmoStyle.stroke(0xFF00E5FF, 1.5f));
+                    }
+                }
+            }
+        }
     }
 }

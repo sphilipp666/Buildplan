@@ -37,16 +37,22 @@ if not exist "%RUN_CONFIG_DIR%\test_project.json" (
 )
 
 echo [3/4] Ueberpruefe Java-Umgebung (Java 25 erforderlich)...
-where java >NUL 2>&1
-if %ERRORLEVEL% neq 0 (
-    if not defined JAVA_HOME (
-        echo.
-        echo [FEHLER] Weder 'java' noch JAVA_HOME wurden gefunden!
-        echo Minecraft 26.2 benoetigt Java 25 (z. B. Eclipse Adoptium / Temurin 25 oder Oracle JDK 25).
-        echo Bitte installiere Java 25 und setze JAVA_HOME.
-        echo.
-        pause
-        exit /b 1
+if exist "%LOCALAPPDATA%\jdk-25\jdk-25.0.4+7\bin\java.exe" (
+    set "JAVA_HOME=%LOCALAPPDATA%\jdk-25\jdk-25.0.4+7"
+    set "PATH=!JAVA_HOME!\bin;!PATH!"
+    echo       Gefunden: Java 25 in !JAVA_HOME!
+) else (
+    where java >NUL 2>&1
+    if %ERRORLEVEL% neq 0 (
+        if not defined JAVA_HOME (
+            echo.
+            echo [FEHLER] Weder 'java' noch JAVA_HOME wurden gefunden!
+            echo Minecraft 26.2 benoetigt Java 25 (z. B. Eclipse Adoptium / Temurin 25 oder Oracle JDK 25).
+            echo Bitte installiere Java 25 und setze JAVA_HOME.
+            echo.
+            pause
+            exit /b 1
+        )
     )
 )
 

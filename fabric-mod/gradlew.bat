@@ -27,7 +27,12 @@ if "%OS%"=="Windows_NT" setlocal
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
 set APP_BASE_NAME=%~n0
-set APP_HOME=%DIRNAME%
+@rem Check for Java 25 first
+if exist "%LOCALAPPDATA%\jdk-25\jdk-25.0.4+7\bin\java.exe" (
+    set "JAVA_HOME=%LOCALAPPDATA%\jdk-25\jdk-25.0.4+7"
+    set "JAVA_EXE=%LOCALAPPDATA%\jdk-25\jdk-25.0.4+7\bin\java.exe"
+    goto execute
+)
 
 @rem Resolve Java
 if defined JAVA_HOME goto findJavaFromJavaHome

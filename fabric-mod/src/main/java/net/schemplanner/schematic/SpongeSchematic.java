@@ -1,18 +1,18 @@
 package net.schemplanner.schematic;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.command.argument.BlockArgumentParser;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
+import net.minecraft.commands.arguments.blocks.BlockStateParser;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtSizeTracker;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.BlockRotation;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,17 +23,26 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Sponge Schematic Parser (.schem) supporting Sponge format versions 1, 2, and 3 for Fabric 26.2.
+ * Multi-format Schematic Parser supporting:
+ * - Sponge Schematic (.schem / .schematic) v1, v2, v3
+ * - Litematica (.litematic) single & multi-region
+ * - Vanilla Structure Block (.nbt)
  */
 public class SpongeSchematic {
     private static final Logger LOGGER = LoggerFactory.getLogger("SchemPlanner");
+
+    public record RawBlock(int x, int y, int z, BlockState state) {}
 
     private final String id;
     private final int width;
     private final int height;
     private final int length;
+    private final List<RawBlock> rawBlocks = new ArrayList<>();
     private final List<PlannedBlock> plannedBlocks = new ArrayList<>();
     private final Map<Item, MaterialRequirement> materialRequirements = new LinkedHashMap<>();
+
+    private BlockPos currentOrigin = BlockPos.ZERO;
+    private int currentRotation = 0;
 
     public SpongeSchematic(String id, int width, int height, int length) {
         this.id = id;
@@ -47,71 +56,259 @@ public class SpongeSchematic {
             throw new IOException("Schematic-Datei nicht gefunden: " + filePath);
         }
 
-        NbtCompound root;
+        CompoundTag root;
         try (InputStream is = Files.newInputStream(filePath)) {
-            root = NbtIo.readCompressed(is, NbtSizeTracker.ofUnlimitedBytes());
+            root = NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
         }
 
         if (root == null) {
             throw new IOException("NBT-Daten konnten nicht aus " + filePath + " gelesen werden.");
         }
 
-        short width = root.getShort("Width");
-        short height = root.getShort("Height");
-        short length = root.getShort("Length");
+        // Handle wrapped "Schematic" root compound (some Sponge v3 / WorldEdit exports)
+        if (root.contains("Schematic") && !root.contains("Palette") && !root.contains("Blocks") && !root.contains("Regions")) {
+            root = root.getCompoundOrEmpty("Schematic");
+        }
+
+        SpongeSchematic schematic;
+        if (root.contains("Regions")) {
+            // Litematica (.litematic) format
+            schematic = loadLitematic(projectId, root, filePath);
+        } else if (root.contains("blocks") && root.contains("palette")) {
+            // Vanilla Structure (.nbt) format
+            schematic = loadVanillaStructure(projectId, root, filePath);
+        } else {
+            // Sponge Schematic (.schem) v1, v2, v3
+            schematic = loadSponge(projectId, root, filePath);
+        }
+
+        schematic.rebuildMaterials();
+        schematic.updateTransform(origin, rotationDegrees);
+
+        LOGGER.info("[SchemPlanner] Geladen: '{}' ({}x{}x{}, {} Blöcke, {} Material-Typen)",
+                projectId, schematic.width, schematic.height, schematic.length,
+                schematic.plannedBlocks.size(), schematic.materialRequirements.size());
+
+        return schematic;
+    }
+
+    /**
+     * Loads Sponge v1, v2, or v3 schematic data.
+     */
+    private static SpongeSchematic loadSponge(String projectId, CompoundTag root, Path filePath) throws IOException {
+        short width = root.getShortOr("Width", (short) 0);
+        short height = root.getShortOr("Height", (short) 0);
+        short length = root.getShortOr("Length", (short) 0);
 
         if (width <= 0 || height <= 0 || length <= 0) {
             throw new IOException(String.format("Ungültige Abmessungen in %s: %dx%dx%d", filePath, width, height, length));
         }
 
-        int totalBlocks = width * height * length;
-        SpongeSchematic schematic = new SpongeSchematic(projectId, width, height, length);
-
-        // Extract Palette & BlockData across v1/v2 and v3
-        NbtCompound paletteCompound;
+        CompoundTag paletteCompound;
         byte[] blockDataBytes;
 
-        if (root.contains("Palette", NbtElement.COMPOUND_TYPE) && root.contains("BlockData", NbtElement.BYTE_ARRAY_TYPE)) {
-            // Sponge v1 & v2
-            paletteCompound = root.getCompound("Palette");
-            blockDataBytes = root.getByteArray("BlockData");
-        } else if (root.contains("Blocks", NbtElement.COMPOUND_TYPE)) {
-            // Sponge v3
-            NbtCompound blocksCompound = root.getCompound("Blocks");
-            paletteCompound = blocksCompound.getCompound("Palette");
-            blockDataBytes = blocksCompound.getByteArray("Data");
+        if (root.contains("Palette") && root.contains("BlockData")) {
+            paletteCompound = root.getCompoundOrEmpty("Palette");
+            blockDataBytes = root.getByteArray("BlockData").orElse(null);
+        } else if (root.contains("Blocks")) {
+            CompoundTag blocksCompound = root.getCompoundOrEmpty("Blocks");
+            paletteCompound = blocksCompound.getCompoundOrEmpty("Palette");
+            blockDataBytes = blocksCompound.getByteArray("Data").orElse(null);
         } else {
-            throw new IOException("Weder Sponge v1/v2 noch v3 Palette & BlockData gefunden in " + filePath);
+            throw new IOException("Unbekanntes Schematic-Format in " + filePath);
         }
 
-        // Parse Palette: map ID -> BlockState
-        Map<Integer, BlockState> paletteMap = parsePalette(paletteCompound);
+        if (blockDataBytes == null) {
+            throw new IOException("BlockData-Bytes fehlen in " + filePath);
+        }
 
-        // Decode VarInts
+        int totalBlocks = width * height * length;
+        SpongeSchematic schematic = new SpongeSchematic(projectId, width, height, length);
+        Map<Integer, BlockState> paletteMap = parsePalette(paletteCompound);
         int[] blockIds = decodeVarInts(blockDataBytes, totalBlocks);
 
-        // Determine rotation parameters
-        BlockRotation blockRot = getBlockRotation(rotationDegrees);
-
-        // Populate blocks and aggregate materials
         for (int index = 0; index < totalBlocks; index++) {
             int paletteId = blockIds[index];
-            BlockState state = paletteMap.getOrDefault(paletteId, Blocks.AIR.getDefaultState());
+            BlockState state = paletteMap.getOrDefault(paletteId, Blocks.AIR.defaultBlockState());
+            if (state.isAir()) continue;
 
-            if (state.isAir()) {
-                continue;
-            }
-
-            // Sponge index calculation: index = (y * length + z) * width + x
             int x = index % width;
             int z = (index / width) % length;
             int y = index / (width * length);
 
-            // Compute rotated coordinates
+            schematic.rawBlocks.add(new RawBlock(x, y, z, state));
+        }
+
+        return schematic;
+    }
+
+    /**
+     * Loads Litematica (.litematic) format (supports single and multi-region files).
+     */
+    private static SpongeSchematic loadLitematic(String projectId, CompoundTag root, Path filePath) throws IOException {
+        CompoundTag regions = root.getCompoundOrEmpty("Regions");
+        if (regions.isEmpty()) {
+            throw new IOException("Keine Regionen in Litematic-Datei gefunden: " + filePath);
+        }
+
+        List<RawBlock> unnormalizedBlocks = new ArrayList<>();
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+
+        for (String regionName : regions.keySet()) {
+            CompoundTag region = regions.getCompoundOrEmpty(regionName);
+            CompoundTag posTag = region.getCompoundOrEmpty("Position");
+            CompoundTag sizeTag = region.getCompoundOrEmpty("Size");
+
+            int regPosX = posTag.getIntOr("x", 0);
+            int regPosY = posTag.getIntOr("y", 0);
+            int regPosZ = posTag.getIntOr("z", 0);
+
+            int rawSizeX = sizeTag.getIntOr("x", 0);
+            int rawSizeY = sizeTag.getIntOr("y", 0);
+            int rawSizeZ = sizeTag.getIntOr("z", 0);
+
+            int sizeX = Math.abs(rawSizeX);
+            int sizeY = Math.abs(rawSizeY);
+            int sizeZ = Math.abs(rawSizeZ);
+            if (sizeX == 0 || sizeY == 0 || sizeZ == 0) continue;
+
+            int offsetX = regPosX + (rawSizeX < 0 ? rawSizeX + 1 : 0);
+            int offsetY = regPosY + (rawSizeY < 0 ? rawSizeY + 1 : 0);
+            int offsetZ = regPosZ + (rawSizeZ < 0 ? rawSizeZ + 1 : 0);
+
+            ListTag paletteList = region.getListOrEmpty("BlockStatePalette");
+            long[] blockStates = region.getLongArray("BlockStates").orElse(null);
+            if (blockStates == null || paletteList.isEmpty()) continue;
+
+            int paletteSize = paletteList.size();
+            BlockState[] palette = new BlockState[paletteSize];
+            for (int i = 0; i < paletteSize; i++) {
+                palette[i] = parsePaletteEntryCompound(paletteList.getCompoundOrEmpty(i));
+            }
+
+            int bitsPerBlock = Math.max(2, Integer.SIZE - Integer.numberOfLeadingZeros(Math.max(1, paletteSize - 1)));
+            long maxEntryValue = (1L << bitsPerBlock) - 1L;
+            int volume = sizeX * sizeY * sizeZ;
+
+            for (int index = 0; index < volume; index++) {
+                long startBit = (long) index * bitsPerBlock;
+                int startArrIndex = (int) (startBit >>> 6);
+                int endArrIndex = (int) ((startBit + bitsPerBlock - 1L) >>> 6);
+                int startBitOffset = (int) (startBit & 63L);
+
+                if (startArrIndex >= blockStates.length) break;
+
+                int paletteId;
+                if (startArrIndex == endArrIndex || endArrIndex >= blockStates.length) {
+                    paletteId = (int) ((blockStates[startArrIndex] >>> startBitOffset) & maxEntryValue);
+                } else {
+                    int endOffset = 64 - startBitOffset;
+                    paletteId = (int) (((blockStates[startArrIndex] >>> startBitOffset) | (blockStates[endArrIndex] << endOffset)) & maxEntryValue);
+                }
+
+                if (paletteId < 0 || paletteId >= paletteSize) continue;
+                BlockState state = palette[paletteId];
+                if (state == null || state.isAir()) continue;
+
+                int lx = index % sizeX;
+                int lz = (index / sizeX) % sizeZ;
+                int ly = index / (sizeX * sizeZ);
+
+                int gx = offsetX + lx;
+                int gy = offsetY + ly;
+                int gz = offsetZ + lz;
+
+                minX = Math.min(minX, gx);
+                minY = Math.min(minY, gy);
+                minZ = Math.min(minZ, gz);
+                maxX = Math.max(maxX, gx);
+                maxY = Math.max(maxY, gy);
+                maxZ = Math.max(maxZ, gz);
+
+                unnormalizedBlocks.add(new RawBlock(gx, gy, gz, state));
+            }
+        }
+
+        if (unnormalizedBlocks.isEmpty()) {
+            return new SpongeSchematic(projectId, 1, 1, 1);
+        }
+
+        int totalWidth = (maxX - minX) + 1;
+        int totalHeight = (maxY - minY) + 1;
+        int totalLength = (maxZ - minZ) + 1;
+
+        SpongeSchematic schematic = new SpongeSchematic(projectId, totalWidth, totalHeight, totalLength);
+        for (RawBlock rb : unnormalizedBlocks) {
+            schematic.rawBlocks.add(new RawBlock(rb.x() - minX, rb.y() - minY, rb.z() - minZ, rb.state()));
+        }
+        return schematic;
+    }
+
+    /**
+     * Loads Vanilla Structure Block (.nbt) format.
+     */
+    private static SpongeSchematic loadVanillaStructure(String projectId, CompoundTag root, Path filePath) {
+        ListTag sizeList = root.getListOrEmpty("size");
+        int width = sizeList.size() >= 3 ? Math.max(1, sizeList.getIntOr(0, 1)) : 1;
+        int height = sizeList.size() >= 3 ? Math.max(1, sizeList.getIntOr(1, 1)) : 1;
+        int length = sizeList.size() >= 3 ? Math.max(1, sizeList.getIntOr(2, 1)) : 1;
+
+        ListTag paletteList = root.getListOrEmpty("palette");
+        BlockState[] palette = new BlockState[paletteList.size()];
+        for (int i = 0; i < paletteList.size(); i++) {
+            palette[i] = parsePaletteEntryCompound(paletteList.getCompoundOrEmpty(i));
+        }
+
+        SpongeSchematic schematic = new SpongeSchematic(projectId, width, height, length);
+        ListTag blocksList = root.getListOrEmpty("blocks");
+        for (int i = 0; i < blocksList.size(); i++) {
+            CompoundTag blockTag = blocksList.getCompoundOrEmpty(i);
+            int stateId = blockTag.getIntOr("state", 0);
+            if (stateId < 0 || stateId >= palette.length) continue;
+            BlockState state = palette[stateId];
+            if (state == null || state.isAir()) continue;
+
+            ListTag posList = blockTag.getListOrEmpty("pos");
+            if (posList.size() < 3) continue;
+            int x = posList.getIntOr(0, 0);
+            int y = posList.getIntOr(1, 0);
+            int z = posList.getIntOr(2, 0);
+
+            schematic.rawBlocks.add(new RawBlock(x, y, z, state));
+        }
+        return schematic;
+    }
+
+    private void rebuildMaterials() {
+        materialRequirements.clear();
+        for (RawBlock rb : rawBlocks) {
+            Item item = rb.state().getBlock().asItem();
+            if (item != Items.AIR) {
+                materialRequirements
+                        .computeIfAbsent(item, k -> new MaterialRequirement(item, 0))
+                        .increment(1);
+            }
+        }
+    }
+
+    /**
+     * Fast in-memory recalculation of world positions and block rotations without disk I/O.
+     */
+    public synchronized void updateTransform(BlockPos origin, int rotationDegrees) {
+        this.currentOrigin = origin;
+        this.currentRotation = ((rotationDegrees % 360) + 360) % 360;
+        Rotation blockRot = getBlockRotation(this.currentRotation);
+
+        plannedBlocks.clear();
+        for (RawBlock rb : rawBlocks) {
+            int x = rb.x();
+            int y = rb.y();
+            int z = rb.z();
+
             int rotatedX;
             int rotatedZ;
-
-            switch (rotationDegrees % 360) {
+            switch (this.currentRotation) {
                 case 90 -> {
                     rotatedX = (length - 1) - z;
                     rotatedZ = x;
@@ -124,37 +321,46 @@ public class SpongeSchematic {
                     rotatedX = z;
                     rotatedZ = (width - 1) - x;
                 }
-                default -> { // 0
+                default -> {
                     rotatedX = x;
                     rotatedZ = z;
                 }
             }
 
-            BlockPos worldPos = origin.add(rotatedX, y, rotatedZ);
-            BlockState rotatedState = state.rotate(blockRot);
-
-            schematic.plannedBlocks.add(new PlannedBlock(worldPos, rotatedState, rotatedX, y, rotatedZ));
-
-            // Aggregate materials
-            Item item = rotatedState.getBlock().asItem();
-            if (item != Items.AIR) {
-                schematic.materialRequirements
-                        .computeIfAbsent(item, k -> new MaterialRequirement(item, 0))
-                        .increment(1);
-            }
+            BlockPos worldPos = origin.offset(rotatedX, y, rotatedZ);
+            BlockState rotatedState = rb.state().rotate(blockRot);
+            plannedBlocks.add(new PlannedBlock(worldPos, rotatedState, rotatedX, y, rotatedZ));
         }
-
-        LOGGER.info("[SchemPlanner] Geladen: '{}' ({} Blöcke, {} Material-Typen)",
-                projectId, schematic.plannedBlocks.size(), schematic.materialRequirements.size());
-
-        return schematic;
     }
 
-    private static Map<Integer, BlockState> parsePalette(NbtCompound paletteCompound) {
+    private static BlockState parsePaletteEntryCompound(CompoundTag entry) {
+        String name = entry.getStringOr("Name", "minecraft:air");
+        if (!entry.contains("Properties")) {
+            return parseBlockStateString(name);
+        }
+        CompoundTag props = entry.getCompoundOrEmpty("Properties");
+        if (props.isEmpty()) {
+            return parseBlockStateString(name);
+        }
+        StringBuilder sb = new StringBuilder(name).append('[');
+        boolean first = true;
+        for (String propKey : props.keySet()) {
+            String propVal = props.getStringOr(propKey, "");
+            if (!propVal.isEmpty()) {
+                if (!first) sb.append(',');
+                sb.append(propKey).append('=').append(propVal);
+                first = false;
+            }
+        }
+        sb.append(']');
+        return parseBlockStateString(sb.toString());
+    }
+
+    private static Map<Integer, BlockState> parsePalette(CompoundTag paletteCompound) {
         Map<Integer, BlockState> map = new HashMap<>();
 
-        for (String key : paletteCompound.getKeys()) {
-            int id = paletteCompound.getInt(key);
+        for (String key : paletteCompound.keySet()) {
+            int id = paletteCompound.getIntOr(key, 0);
             BlockState state = parseBlockStateString(key);
             map.put(id, state);
         }
@@ -164,20 +370,17 @@ public class SpongeSchematic {
 
     private static BlockState parseBlockStateString(String stateString) {
         try {
-            // First attempt: parsing block state string using Minecraft's BlockArgumentParser
-            var wrapper = Registries.BLOCK.getReadOnlyWrapper();
-            return BlockArgumentParser.block(wrapper, stateString, true).blockState();
+            return BlockStateParser.parseForBlock(BuiltInRegistries.BLOCK, stateString, true).blockState();
         } catch (Exception e) {
-            // Fallback: parse clean block identifier without properties
             try {
                 String cleanId = stateString.split("\\[")[0];
                 Identifier id = Identifier.tryParse(cleanId);
-                if (id != null && Registries.BLOCK.containsId(id)) {
-                    return Registries.BLOCK.get(id).getDefaultState();
+                if (id != null && BuiltInRegistries.BLOCK.containsKey(id)) {
+                    return BuiltInRegistries.BLOCK.getValue(id).defaultBlockState();
                 }
             } catch (Exception ignored) {
             }
-            return Blocks.AIR.getDefaultState();
+            return Blocks.AIR.defaultBlockState();
         }
     }
 
@@ -186,7 +389,6 @@ public class SpongeSchematic {
         int byteOffset = 0;
         int len = bytes.length;
 
-        // Fast path for schematics where all palette IDs fit in 1 byte
         if (len == totalCount) {
             for (int i = 0; i < totalCount; i++) {
                 result[i] = bytes[i] & 0xFF;
@@ -208,13 +410,13 @@ public class SpongeSchematic {
         return result;
     }
 
-    private static BlockRotation getBlockRotation(int degrees) {
+    private static Rotation getBlockRotation(int degrees) {
         int normalized = ((degrees % 360) + 360) % 360;
         return switch (normalized) {
-            case 90 -> BlockRotation.CLOCKWISE_90;
-            case 180 -> BlockRotation.CLOCKWISE_180;
-            case 270 -> BlockRotation.COUNTERCLOCKWISE_90;
-            default -> BlockRotation.NONE;
+            case 90 -> Rotation.CLOCKWISE_90;
+            case 180 -> Rotation.CLOCKWISE_180;
+            case 270 -> Rotation.COUNTERCLOCKWISE_90;
+            default -> Rotation.NONE;
         };
     }
 
@@ -234,8 +436,24 @@ public class SpongeSchematic {
         return length;
     }
 
-    public List<PlannedBlock> getPlannedBlocks() {
-        return plannedBlocks;
+    public int getRotatedWidth() {
+        return (currentRotation == 90 || currentRotation == 270) ? length : width;
+    }
+
+    public int getRotatedLength() {
+        return (currentRotation == 90 || currentRotation == 270) ? width : length;
+    }
+
+    public BlockPos getCurrentOrigin() {
+        return currentOrigin;
+    }
+
+    public int getCurrentRotation() {
+        return currentRotation;
+    }
+
+    public synchronized List<PlannedBlock> getPlannedBlocks() {
+        return Collections.unmodifiableList(plannedBlocks);
     }
 
     public Map<Item, MaterialRequirement> getMaterialRequirements() {

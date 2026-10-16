@@ -1,11 +1,11 @@
 package net.schemplanner.gui;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ElementListWidget;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import net.schemplanner.schematic.MaterialRequirement;
 
 import java.util.ArrayList;
@@ -14,24 +14,28 @@ import java.util.List;
 
 /**
  * Scrollable list displaying material requirements, inventory counts, and missing quantities.
- * Updated for Fabric 26.2 / modern ElementListWidget API.
+ * Updated for Fabric 26.2 with 32-bit ARGB font colors and proper row width.
  */
-public class MaterialListWidget extends ElementListWidget<MaterialListWidget.MaterialEntry> {
+public class MaterialListWidget extends ObjectSelectionList<MaterialListWidget.MaterialEntry> {
     private final List<MaterialEntry> allEntries = new ArrayList<>();
     private String currentSearch = "";
     private boolean onlyMissing = false;
 
-    public MaterialListWidget(MinecraftClient client, int width, int height, int y, int itemHeight) {
+    public MaterialListWidget(Minecraft client, int width, int height, int y, int itemHeight) {
         super(client, width, height, y, itemHeight);
-        this.centerListVertically = false;
+    }
+
+    @Override
+    public int getRowWidth() {
+        return Math.min(this.width - 24, 440);
     }
 
     public void setMaterials(Collection<MaterialRequirement> requirements) {
         allEntries.clear();
-        PlayerInventory inventory = client.player != null ? client.player.getInventory() : null;
+        Inventory inventory = minecraft.player != null ? minecraft.player.getInventory() : null;
 
         for (MaterialRequirement req : requirements) {
-            allEntries.add(new MaterialEntry(client, req, inventory));
+            allEntries.add(new MaterialEntry(minecraft, req, inventory));
         }
 
         applyFilter();
@@ -60,7 +64,7 @@ public class MaterialListWidget extends ElementListWidget<MaterialListWidget.Mat
             }
 
             if (!currentSearch.isEmpty()) {
-                String name = entry.getItemStack().getName().getString().toLowerCase();
+                String name = entry.getItemStack().getHoverName().getString().toLowerCase();
                 if (!name.contains(currentSearch)) {
                     continue;
                 }
@@ -70,15 +74,15 @@ public class MaterialListWidget extends ElementListWidget<MaterialListWidget.Mat
         }
     }
 
-    public static class MaterialEntry extends ElementListWidget.Entry<MaterialEntry> {
-        private final MinecraftClient client;
+    public static class MaterialEntry extends ObjectSelectionList.Entry<MaterialEntry> {
+        private final Minecraft client;
         private final MaterialRequirement requirement;
         private final ItemStack itemStack;
         private final int inInventory;
         private final int missing;
         private final boolean complete;
 
-        public MaterialEntry(MinecraftClient client, MaterialRequirement requirement, PlayerInventory inventory) {
+        public MaterialEntry(Minecraft client, MaterialRequirement requirement, Inventory inventory) {
             this.client = client;
             this.requirement = requirement;
             this.itemStack = new ItemStack(requirement.getItem());
@@ -96,28 +100,28 @@ public class MaterialListWidget extends ElementListWidget<MaterialListWidget.Mat
         }
 
         @Override
-        public List<? extends net.minecraft.client.gui.Element> children() {
-            return List.of();
+        public Component getNarration() {
+            return itemStack.getHoverName();
         }
 
         @Override
-        public List<? extends net.minecraft.client.gui.Selectable> selectableChildren() {
-            return List.of();
-        }
+        public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getContentX();
+            int y = getContentY();
+            int entryWidth = getContentWidth();
+            int entryHeight = getContentHeight();
 
-        @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             // Background hover highlight
             if (hovered) {
-                context.fill(x - 2, y - 1, x + entryWidth + 2, y + entryHeight - 1, 0x22FFFFFF);
+                graphics.fill(x - 2, y - 1, x + entryWidth + 2, y + entryHeight - 1, 0x33FFFFFF);
             }
 
             // Draw Item Icon
-            context.drawItem(itemStack, x + 4, y + 3);
+            graphics.item(itemStack, x + 4, y + 4);
 
-            // Item Display Name
-            Text itemName = itemStack.getName();
-            context.drawText(client.textRenderer, itemName, x + 26, y + 2, 0xFFFFFF, true);
+            // Item Display Name (Must use 0xFFFFFFFF for full opacity in 26.2 ARGB)
+            Component itemName = itemStack.getHoverName();
+            graphics.text(client.font, itemName, x + 26, y + 3, 0xFFFFFFFF, true);
 
             // Format Stack info: e.g. "128 (2 Stacks)"
             int req = requirement.getRequiredCount();
@@ -127,17 +131,17 @@ public class MaterialListWidget extends ElementListWidget<MaterialListWidget.Mat
 
             // Soll / Ist / Fehlend Line
             String statsLine = String.format("§7Soll: §f%d %s §8| §7Inventar: §f%d", req, stackStr, inInventory);
-            context.drawText(client.textRenderer, Text.literal(statsLine), x + 26, y + 13, 0xAAAAAA, false);
+            graphics.text(client.font, Component.literal(statsLine), x + 26, y + 14, 0xFFAAAAAA, false);
 
             // Status Badge on the right
             if (complete) {
-                String status = "§a✔ Vorhanden";
-                int textW = client.textRenderer.getWidth(status);
-                context.drawText(client.textRenderer, Text.literal(status), x + entryWidth - textW - 8, y + 7, 0x55FF55, true);
+                String status = "§aVorhanden";
+                int textW = client.font.width(status);
+                graphics.text(client.font, Component.literal(status), x + entryWidth - textW - 8, y + 8, 0xFF55FF55, true);
             } else {
-                String status = String.format("§cFehlt noch: %d", missing);
-                int textW = client.textRenderer.getWidth(status);
-                context.drawText(client.textRenderer, Text.literal(status), x + entryWidth - textW - 8, y + 7, 0xFF5555, true);
+                String status = String.format("§cFehlt: %d", missing);
+                int textW = client.font.width(status);
+                graphics.text(client.font, Component.literal(status), x + entryWidth - textW - 8, y + 8, 0xFFFF5555, true);
             }
         }
     }

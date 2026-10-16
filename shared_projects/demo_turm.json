@@ -1,0 +1,17 @@
+{
+  "id": "demo_turm",
+  "title": "Demo Turm",
+  "schematic": "demo_turm.schem",
+  "owner": "Team",
+  "assignedPlayers": [
+    "Philipp"
+  ],
+  "status": "IN_PROGRESS",
+  "origin": {
+    "x": 0,
+    "y": 70,
+    "z": 0
+  },
+  "rotation": 0,
+  "unlocked": true
+}
