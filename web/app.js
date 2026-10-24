@@ -62,6 +62,10 @@ const bluemapIframe = document.getElementById('bluemap-iframe');
 const mixedContentWarning = document.getElementById('mixed-content-warning');
 const btnBannerOpenMap = document.getElementById('btn-banner-open-map');
 const btnCopyMapUrl = document.getElementById('btn-copy-map-url');
+const btnForceLoadFrame = document.getElementById('btn-force-load-frame');
+const btnShowMixedHelp = document.getElementById('btn-show-mixed-help');
+const livemapTroubleshootBar = document.getElementById('livemap-troubleshoot-bar');
+let forceEmbedLivemap = localStorage.getItem('force_embed_bluemap') === 'true';
 
 // BlueMap Marker Modal DOM
 const btnBlueMapModal = document.getElementById('btn-bluemap-modal');
@@ -632,24 +636,27 @@ function initEventListeners() {
     }
 
     // Livemap Protocol & Copy Handling
-    const isHttps = window.location.protocol === 'https:';
-    if (isHttps) {
-        if (mixedContentWarning) mixedContentWarning.style.display = 'flex';
-        if (bluemapIframe) bluemapIframe.style.display = 'none';
-    } else {
-        if (mixedContentWarning) mixedContentWarning.style.display = 'none';
-        if (bluemapIframe) {
-            bluemapIframe.style.display = 'block';
-            bluemapIframe.src = 'http://161.97.151.79:8100/#kekwelt';
-        }
+    syncLivemapDisplay();
+
+    if (btnForceLoadFrame) {
+        btnForceLoadFrame.addEventListener('click', () => {
+            forceEmbedLivemap = true;
+            localStorage.setItem('force_embed_bluemap', 'true');
+            syncLivemapDisplay();
+        });
+    }
+
+    if (btnShowMixedHelp) {
+        btnShowMixedHelp.addEventListener('click', () => {
+            forceEmbedLivemap = false;
+            localStorage.setItem('force_embed_bluemap', 'false');
+            syncLivemapDisplay();
+        });
     }
 
     if (btnCopyMapUrl) {
         btnCopyMapUrl.addEventListener('click', () => {
-            const x = state.origin.x;
-            const y = state.origin.y;
-            const z = state.origin.z;
-            const targetUrl = `http://161.97.151.79:8100/#kekwelt:${x}:${y}:${z}:75:0:0`;
+            const targetUrl = getBlueMapUrl();
             navigator.clipboard.writeText(targetUrl).then(() => {
                 btnCopyMapUrl.innerHTML = '<span>✔</span> URL kopiert!';
                 setTimeout(() => {
@@ -876,13 +883,43 @@ function downloadBlob(blob, filename) {
 // BlueMap Livemap Integration & Viewport Mode Handling
 // ---------------------------------------------------------------------
 
-function updateBlueMapTarget() {
+function getBlueMapUrl() {
     const x = state.origin.x;
     const y = state.origin.y;
     const z = state.origin.z;
-    const targetUrl = `http://161.97.151.79:8100/#kekwelt:${x}:${y}:${z}:75:0:0`;
+    return `http://161.97.151.79:8100/#kekwelt:${x}:${y}:${z}:75:0:0`;
+}
+
+function updateBlueMapTarget() {
+    const targetUrl = getBlueMapUrl();
     if (btnBannerOpenMap) {
         btnBannerOpenMap.href = targetUrl;
+    }
+    const troubleshootLink = document.getElementById('troubleshoot-newtab-link');
+    if (troubleshootLink) {
+        troubleshootLink.href = targetUrl;
+    }
+}
+
+function syncLivemapDisplay() {
+    const isHttps = window.location.protocol === 'https:';
+    const targetUrl = getBlueMapUrl();
+
+    if (isHttps && !forceEmbedLivemap) {
+        if (mixedContentWarning) mixedContentWarning.style.display = 'flex';
+        if (bluemapIframe) bluemapIframe.style.display = 'none';
+        if (livemapTroubleshootBar) livemapTroubleshootBar.style.display = 'none';
+    } else {
+        if (mixedContentWarning) mixedContentWarning.style.display = 'none';
+        if (bluemapIframe) {
+            bluemapIframe.style.display = 'block';
+            if (!bluemapIframe.src || bluemapIframe.src === 'about:blank' || bluemapIframe.src.indexOf('161.97.151.79') === -1) {
+                bluemapIframe.src = targetUrl;
+            }
+        }
+        if (livemapTroubleshootBar) {
+            livemapTroubleshootBar.style.display = isHttps ? 'flex' : 'none';
+        }
     }
 }
 
@@ -890,8 +927,6 @@ function setViewportMode(mode) {
     [tabVoxelView, tabLivemapView, tabSplitView].forEach(tab => {
         if (tab) tab.classList.remove('active');
     });
-
-    const isHttps = window.location.protocol === 'https:';
 
     if (mode === 'voxel') {
         if (tabVoxelView) tabVoxelView.classList.add('active');
@@ -904,53 +939,28 @@ function setViewportMode(mode) {
         if (viewportContainer) viewportContainer.classList.remove('split-mode');
         if (canvasContainer) canvasContainer.style.display = 'none';
         if (livemapContainer) livemapContainer.style.display = 'block';
-        if (isHttps) {
-            if (mixedContentWarning) mixedContentWarning.style.display = 'flex';
-            if (bluemapIframe) bluemapIframe.style.display = 'none';
-        } else {
-            if (mixedContentWarning) mixedContentWarning.style.display = 'none';
-            if (bluemapIframe) {
-                bluemapIframe.style.display = 'block';
-                if (!bluemapIframe.src || bluemapIframe.src === 'about:blank' || bluemapIframe.src.indexOf('161.97.151.79') === -1) {
-                    bluemapIframe.src = `http://161.97.151.79:8100/#kekwelt:${state.origin.x}:${state.origin.y}:${state.origin.z}:75:0:0`;
-                }
-            }
-        }
+        syncLivemapDisplay();
     } else if (mode === 'split') {
         if (tabSplitView) tabSplitView.classList.add('active');
         if (viewportContainer) viewportContainer.classList.add('split-mode');
         if (canvasContainer) canvasContainer.style.display = 'block';
         if (livemapContainer) livemapContainer.style.display = 'block';
-        if (isHttps) {
-            if (mixedContentWarning) mixedContentWarning.style.display = 'flex';
-            if (bluemapIframe) bluemapIframe.style.display = 'none';
-        } else {
-            if (mixedContentWarning) mixedContentWarning.style.display = 'none';
-            if (bluemapIframe) {
-                bluemapIframe.style.display = 'block';
-                if (!bluemapIframe.src || bluemapIframe.src === 'about:blank' || bluemapIframe.src.indexOf('161.97.151.79') === -1) {
-                    bluemapIframe.src = `http://161.97.151.79:8100/#kekwelt:${state.origin.x}:${state.origin.y}:${state.origin.z}:75:0:0`;
-                }
-            }
-        }
+        syncLivemapDisplay();
         onWindowResize();
     }
 }
 
 function flyBlueMapToCurrentProject() {
-    const x = state.origin.x;
-    const y = state.origin.y;
-    const z = state.origin.z;
-    const targetUrl = `http://161.97.151.79:8100/#kekwelt:${x}:${y}:${z}:75:0:0`;
-    
+    const targetUrl = getBlueMapUrl();
     updateBlueMapTarget();
 
-    if (window.location.protocol === 'https:') {
+    if (bluemapIframe) {
+        bluemapIframe.src = targetUrl;
+    }
+
+    if (window.location.protocol === 'https:' && !forceEmbedLivemap) {
         window.open(targetUrl, '_blank');
     } else {
-        if (bluemapIframe) {
-            bluemapIframe.src = targetUrl;
-        }
         if (viewportContainer && !viewportContainer.classList.contains('split-mode') && livemapContainer.style.display === 'none') {
             setViewportMode('split');
         }

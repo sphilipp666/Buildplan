@@ -810,3 +810,61 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: left;
 }
 
+.banner-steps {
+    text-align: left;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 0.84rem;
+    color: #cbd5e1;
+    margin-top: 16px;
+    line-height: 1.6;
+}
+
+.banner-steps ol {
+    margin: 6px 0 0 18px;
+    padding: 0;
+}
+
+.banner-steps li {
+    margin-bottom: 4px;
+}
+
+#livemap-troubleshoot-bar {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 30px;
+    padding: 6px 16px;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+}
+
+#livemap-troubleshoot-bar a,
+#livemap-troubleshoot-bar .troubleshoot-link {
+    color: #38bdf8;
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 0.78rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+#livemap-troubleshoot-bar a:hover,
+#livemap-troubleshoot-bar .troubleshoot-link:hover {
+    color: #7dd3fc;
+}
+

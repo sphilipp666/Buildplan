@@ -224,27 +224,53 @@
 
             <div id="livemap-container">
                 <iframe id="bluemap-iframe" title="BlueMap Server Livemap" allowfullscreen style="display: none;"></iframe>
+                
+                <!-- Floating Troubleshoot Bar when iframe is active -->
+                <div id="livemap-troubleshoot-bar" style="display: none;">
+                    <span>🗺️ BlueMap Livemap</span>
+                    <button id="btn-show-mixed-help" class="troubleshoot-link" type="button">Karte bleibt weiß/grau?</button>
+                    <span>•</span>
+                    <a id="troubleshoot-newtab-link" href="http://161.97.151.79:8100/#kekwelt" target="_blank" rel="noopener noreferrer">Im neuen Tab</a>
+                </div>
+
                 <div id="mixed-content-warning" class="mixed-content-banner" style="display: none;">
                     <div class="banner-card">
                         <span class="banner-icon">🛡️</span>
-                        <h2>Browser-Sicherheitshinweis (HTTPS / HTTP)</h2>
+                        <h2>Livemap direkt auf der Website einbetten</h2>
                         <p>
-                            Diese Website läuft über verschlüsseltes <code>https://</code> (GitHub Pages).<br>
-                            Dein Minecraft-Server stellt BlueMap unter <code>http://161.97.151.79:8100</code> (ungesichertes HTTP) bereit.<br>
-                            Moderne Browser blockieren unverschlüsselte HTTP-iFrames innerhalb von HTTPS-Seiten (Mixed Content Security).
+                            Diese Website läuft über <code>https://</code> (GitHub Pages).<br>
+                            Dein Server stellt BlueMap über <code>http://161.97.151.79:8100</code> (HTTP) bereit.<br>
+                            Browser blockieren HTTP-iFrames in HTTPS standardmäßig aus Sicherheitsgründen.
                         </p>
+                        
                         <div class="banner-actions">
+                            <button id="btn-force-load-frame" class="btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a; font-weight: 700; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
+                                <span>⚡</span> Im iFrame erzwingen / laden
+                            </button>
                             <a id="btn-banner-open-map" href="http://161.97.151.79:8100/#kekwelt" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                                <span>🗺️</span> BlueMap im neuen Tab öffnen
+                                <span>↗️</span> Neuer Tab
                             </a>
                             <button id="btn-copy-map-url" class="btn btn-secondary">
                                 <span>📋</span> URL kopieren
                             </button>
                         </div>
-                        <div class="banner-tip">
-                            💡 <strong>Eingebettete Ansicht nutzen:</strong><br>
-                            • <strong>Lokal:</strong> Starte den Planer auf deinem PC mit <code>start-web.bat</code> (unter <code>http://localhost:8080</code>). Da beide über HTTP laufen, ist die Livemap direkt im Split-Screen nahtlos eingebettet!<br>
-                            • <strong>Online:</strong> Richte für deinen Server ein SSL-Zertifikat (HTTPS) ein (z.&nbsp;B. via Nginx Proxy Manager, Caddy oder Cloudflare Tunnel).
+
+                        <div class="banner-steps">
+                            <div style="font-weight: 600; color: #38bdf8; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                                <span>🔓</span> So schaltest du die eingebettete Anzeige in Chrome/Edge frei:
+                            </div>
+                            <ol>
+                                <li>Klicke oben links in der Adressleiste vor <code>sphilipp666.github.io</code> auf das <strong>Website-Einstellungen-Icon</strong> (die zwei Schieberegler oder das Schloss).</li>
+                                <li>Klicke auf <strong>"Website-Einstellungen"</strong>.</li>
+                                <li>Stelle die Option <strong>"Unsichere Inhalte" (Insecure content)</strong> von <em>Blockieren</em> auf <strong>"Zulassen"</strong>.</li>
+                                <li>Lade diese Seite neu (F5) ➔ <strong>Die Livemap lädt direkt hier nahtlos im Fenster!</strong></li>
+                            </ol>
+                        </div>
+
+                        <div class="banner-tip" style="margin-top: 14px;">
+                            💡 <strong>Für alle Besucher ohne Browser-Einstellung:</strong><br>
+                            • <strong>Server auf HTTPS umstellen:</strong> Kostenloser Cloudflare Tunnel oder Caddy/Nginx mit Let's Encrypt.<br>
+                            • <strong>Lokal nutzen:</strong> Starte den Planer auf deinem PC per <code>start-web.bat</code> (unter <code>http://localhost:8080</code>). Da beide über HTTP laufen, ist die Map sofort ohne Einschränkung eingebettet.
                         </div>
                     </div>
                 </div>
