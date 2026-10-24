@@ -19,7 +19,10 @@
                     <span class="brand-icon">📐</span>
                     <div>
                         <h1>Bauplaner 3D</h1>
-                        <span class="brand-badge">Minecraft Fabric 26.2</span>
+                        <div style="display: flex; gap: 6px; align-items: center; margin-top: 3px;">
+                            <span class="brand-badge">Fabric 26.2</span>
+                            <span class="brand-badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80; border-color: rgba(34, 197, 94, 0.3);">🟢 BlueMap Online</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -174,15 +177,45 @@
                 <button class="btn btn-accent" id="btn-export">
                     <span>💾</span> Projekt-JSON exportieren
                 </button>
+                <button class="btn btn-bluemap" id="btn-bluemap-modal">
+                    <span>🗺️</span> BlueMap Marker (.conf / .json)
+                </button>
                 <button class="btn btn-secondary" id="btn-download-schem" title="Lädt die hochgeladene Schematic herunter">
                     <span>📥</span> Schematic (.schem) sichern
                 </button>
             </div>
         </aside>
 
-        <!-- 3D Viewport -->
+        <!-- 3D Viewport & Livemap Container -->
         <main id="viewport-container">
+            <!-- Mode Switcher Navigation -->
+            <div class="viewport-nav">
+                <div class="nav-tabs">
+                    <button class="nav-tab active" id="tab-voxel-view">
+                        <span>📐</span> 3D-Voxel-Planer
+                    </button>
+                    <button class="nav-tab" id="tab-livemap-view">
+                        <span>🗺️</span> Server-Livemap
+                    </button>
+                    <button class="nav-tab" id="tab-split-view">
+                        <span>⚡</span> Split-View
+                    </button>
+                </div>
+                <div class="nav-actions">
+                    <button class="nav-link-btn" id="btn-fly-bluemap" title="Zentriert die BlueMap auf die aktuellen Bauplan-Koordinaten">
+                        <span>🎯</span> Zu Bauplan auf Livemap
+                    </button>
+                    <a href="http://161.97.151.79:8100/#kekwelt" target="_blank" rel="noopener noreferrer" class="nav-link-btn" title="BlueMap im separaten Tab öffnen">
+                        <span>↗️</span> Neuer Tab
+                    </a>
+                </div>
+            </div>
+
             <div id="canvas-container"></div>
+
+            <div id="livemap-container">
+                <iframe id="bluemap-iframe" src="http://161.97.151.79:8100/#kekwelt" title="BlueMap Server Livemap" allowfullscreen></iframe>
+            </div>
 
             <!-- Viewport Overlay HUD -->
             <div class="viewport-hud">
@@ -206,6 +239,39 @@
                 • Pfeile am Gizmo: Ganzzahlige Koordinaten verschieben
             </div>
         </main>
+    </div>
+
+    <!-- BlueMap Marker Modal -->
+    <div class="modal-backdrop" id="bluemap-modal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>🗺️</span> BlueMap 3D-Marker für den Server
+                </div>
+                <button class="modal-close-btn" id="btn-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-subtext">
+                    Dieser 3D-Marker blendet das Bauwerk als farbige Zone und Stecknadel auf eurer Server-Livemap ein (Map: <b>kekwelt</b>).
+                </div>
+                <div class="modal-tabs">
+                    <button class="modal-tab-btn active" id="tab-modal-hocon">HOCON (für kekwelt.conf)</button>
+                    <button class="modal-tab-btn" id="tab-modal-json">JSON (für markers.json)</button>
+                </div>
+                <pre class="code-box" id="modal-code-content"></pre>
+                <div class="modal-subtext" style="font-size: 0.8rem; color: #94a3b8;">
+                    💡 <b>Anleitung:</b> Füge den HOCON-Code in <code>config/bluemap/maps/kekwelt.conf</code> auf eurem Server ein und tippe in der Server-Konsole <code>/bluemap reload</code>!
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btn-modal-copy">
+                    <span>📋</span> Code kopieren
+                </button>
+                <button class="btn btn-accent" id="btn-modal-download">
+                    <span>📥</span> Datei herunterladen
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Application Module Script -->

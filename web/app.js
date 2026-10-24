@@ -49,6 +49,27 @@ const btnTestCube = document.getElementById('btn-test-cube');
 const btnSingleplayer = document.getElementById('btn-singleplayer');
 const btnToggleTerrain = document.getElementById('btn-toggle-terrain');
 const btnResetCam = document.getElementById('btn-reset-cam');
+
+// Viewport Navigation & Livemap DOM
+const tabVoxelView = document.getElementById('tab-voxel-view');
+const tabLivemapView = document.getElementById('tab-livemap-view');
+const tabSplitView = document.getElementById('tab-split-view');
+const btnFlyBlueMap = document.getElementById('btn-fly-bluemap');
+const viewportContainer = document.getElementById('viewport-container');
+const canvasContainer = document.getElementById('canvas-container');
+const livemapContainer = document.getElementById('livemap-container');
+const bluemapIframe = document.getElementById('bluemap-iframe');
+
+// BlueMap Marker Modal DOM
+const btnBlueMapModal = document.getElementById('btn-bluemap-modal');
+const blueMapModal = document.getElementById('bluemap-modal');
+const btnModalClose = document.getElementById('btn-modal-close');
+const tabModalHocon = document.getElementById('tab-modal-hocon');
+const tabModalJson = document.getElementById('tab-modal-json');
+const modalCodeContent = document.getElementById('modal-code-content');
+const btnModalCopy = document.getElementById('btn-modal-copy');
+const btnModalDownload = document.getElementById('btn-modal-download');
+let currentModalTab = 'hocon'; // 'hocon' or 'json'
 const layerSlider = document.getElementById('layer-slider');
 const layerValueBadge = document.getElementById('layer-value');
 const infoCard = document.getElementById('info-card');
@@ -563,6 +584,47 @@ function initEventListeners() {
             alert('Lade zuerst eine eigene .schem Datei hoch, um diese herunterzuladen.');
         }
     });
+
+    // Viewport Mode Switchers
+    if (tabVoxelView) {
+        tabVoxelView.addEventListener('click', () => setViewportMode('voxel'));
+    }
+    if (tabLivemapView) {
+        tabLivemapView.addEventListener('click', () => setViewportMode('livemap'));
+    }
+    if (tabSplitView) {
+        tabSplitView.addEventListener('click', () => setViewportMode('split'));
+    }
+
+    // Fly to current project on BlueMap
+    if (btnFlyBlueMap) {
+        btnFlyBlueMap.addEventListener('click', flyBlueMapToCurrentProject);
+    }
+
+    // BlueMap Marker Modal
+    if (btnBlueMapModal) {
+        btnBlueMapModal.addEventListener('click', openBlueMapModal);
+    }
+    if (btnModalClose) {
+        btnModalClose.addEventListener('click', closeBlueMapModal);
+    }
+    if (blueMapModal) {
+        blueMapModal.addEventListener('click', (e) => {
+            if (e.target === blueMapModal) closeBlueMapModal();
+        });
+    }
+    if (tabModalHocon) {
+        tabModalHocon.addEventListener('click', () => setModalTab('hocon'));
+    }
+    if (tabModalJson) {
+        tabModalJson.addEventListener('click', () => setModalTab('json'));
+    }
+    if (btnModalCopy) {
+        btnModalCopy.addEventListener('click', copyModalCode);
+    }
+    if (btnModalDownload) {
+        btnModalDownload.addEventListener('click', downloadModalFile);
+    }
 }
 
 async function handleFile(file) {
@@ -772,3 +834,215 @@ function downloadBlob(blob, filename) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
+
+// ---------------------------------------------------------------------
+// BlueMap Livemap Integration & Viewport Mode Handling
+// ---------------------------------------------------------------------
+
+function setViewportMode(mode) {
+    [tabVoxelView, tabLivemapView, tabSplitView].forEach(tab => {
+        if (tab) tab.classList.remove('active');
+    });
+
+    if (mode === 'voxel') {
+        if (tabVoxelView) tabVoxelView.classList.add('active');
+        if (viewportContainer) viewportContainer.classList.remove('split-mode');
+        if (canvasContainer) canvasContainer.style.display = 'block';
+        if (livemapContainer) livemapContainer.style.display = 'none';
+        onWindowResize();
+    } else if (mode === 'livemap') {
+        if (tabLivemapView) tabLivemapView.classList.add('active');
+        if (viewportContainer) viewportContainer.classList.remove('split-mode');
+        if (canvasContainer) canvasContainer.style.display = 'none';
+        if (livemapContainer) livemapContainer.style.display = 'block';
+    } else if (mode === 'split') {
+        if (tabSplitView) tabSplitView.classList.add('active');
+        if (viewportContainer) viewportContainer.classList.add('split-mode');
+        if (canvasContainer) canvasContainer.style.display = 'block';
+        if (livemapContainer) livemapContainer.style.display = 'block';
+        onWindowResize();
+    }
+}
+
+function flyBlueMapToCurrentProject() {
+    const x = state.origin.x;
+    const y = state.origin.y;
+    const z = state.origin.z;
+    const targetUrl = `http://161.97.151.79:8100/#kekwelt:${x}:${y}:${z}:75:0:0`;
+    if (bluemapIframe) {
+        bluemapIframe.src = targetUrl;
+    }
+
+    // Switch to split view or livemap if voxel view is currently full
+    if (viewportContainer && !viewportContainer.classList.contains('split-mode') && livemapContainer.style.display === 'none') {
+        setViewportMode('split');
+    }
+}
+
+// ---------------------------------------------------------------------
+// BlueMap Marker Generator Modal
+// ---------------------------------------------------------------------
+
+function getProjectMarkerData() {
+    const w = state.schematicData ? state.schematicData.width : 10;
+    const h = state.schematicData ? state.schematicData.height : 10;
+    const l = state.schematicData ? state.schematicData.length : 10;
+
+    const ox = state.origin.x;
+    const oy = state.origin.y;
+    const oz = state.origin.z;
+    const rot = ((state.rotation || 0) % 360 + 360) % 360;
+
+    const effW = (rot === 90 || rot === 270) ? l : w;
+    const effL = (rot === 90 || rot === 270) ? w : l;
+
+    const centerX = ox + effW / 2;
+    const centerZ = oz + effL / 2;
+    const topY = oy + h;
+
+    const status = (state.status || 'PLANNED').toUpperCase();
+    let colorName = 'Geplant', badge = '🟡 Geplant', rgb = { r: 234, g: 179, b: 8 }, hex = '#eab308';
+    if (status === 'COMPLETED' || status === 'FERTIG') {
+        colorName = 'Fertig'; badge = '🟢 Fertig'; rgb = { r: 34, g: 197, b: 94 }; hex = '#22c55e';
+    } else if (status === 'IN_PROGRESS' || status === 'BAU') {
+        colorName = 'Im Bau'; badge = '🟠 Im Bau'; rgb = { r: 249, g: 115, b: 22 }; hex = '#f97316';
+    }
+
+    const title = (inputTitle && inputTitle.value.trim()) ? inputTitle.value.trim() : (state.title || state.projectId);
+    const owner = (inputOwner && inputOwner.value.trim()) ? inputOwner.value.trim() : (state.owner || 'Gemeinschaft');
+    const assigned = (inputAssigned && inputAssigned.value.trim()) ? inputAssigned.value.trim() : (state.assignedPlayers?.join(', ') || 'Alle (öffentlich)');
+
+    const id = (state.projectId || 'bauplan').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+
+    const detailHtml = `<div style="font-family: sans-serif; min-width: 190px; padding: 4px;"><h3 style="margin: 0 0 6px 0; color: #f1f5f9; font-size: 15px; border-bottom: 2px solid ${hex}; padding-bottom: 4px;">${title}</h3><p style="margin: 4px 0; font-size: 13px;"><b>Status:</b> <span style="color:${hex}; font-weight:bold;">${badge}</span></p><p style="margin: 4px 0; font-size: 13px;"><b>Bauleiter:</b> <span style="color:#38bdf8;">${owner}</span></p><p style="margin: 4px 0; font-size: 13px;"><b>Zuständig:</b> <span style="color:#4ade80;">${assigned}</span></p><p style="margin: 4px 0; font-size: 12px; color:#94a3b8;"><b>Position:</b> ${ox}, ${oy}, ${oz} (${rot}°)</p><p style="margin: 4px 0; font-size: 12px; color:#94a3b8;"><b>Maße:</b> ${w} x ${h} x ${l} Blöcke</p></div>`.replace(/"/g, '\\"');
+
+    const hocon = `# In: config/bluemap/maps/kekwelt.conf unter 'marker-sets: { ... }' einfuegen:
+marker-sets: {
+    schem-planner: {
+        label: "📐 Baupläne & Stadtplanung"
+        toggleable: true
+        default-hidden: false
+        sorting: 0
+
+        markers: {
+            ${id}_box: {
+                type: "extrude"
+                label: "${title} [3D Zone]"
+                position: { x: ${centerX}, y: ${oy}, z: ${centerZ} }
+                shape-y: ${oy}
+                shape: [
+                    { x: ${ox}, z: ${oz} },
+                    { x: ${ox + effW}, z: ${oz} },
+                    { x: ${ox + effW}, z: ${oz + effL} },
+                    { x: ${ox}, z: ${oz + effL} }
+                ]
+                height: ${h}
+                line-color: { r: ${rgb.r}, g: ${rgb.g}, b: ${rgb.b}, a: 1.0 }
+                fill-color: { r: ${rgb.r}, g: ${rgb.g}, b: ${rgb.b}, a: 0.28 }
+                line-width: 2
+                detail: "${detailHtml}"
+            }
+            ${id}_pin: {
+                type: "poi"
+                label: "${title} (${colorName})"
+                position: { x: ${centerX}, y: ${topY + 1.5}, z: ${centerZ} }
+                min-distance: 5
+                max-distance: 25000
+                detail: "${detailHtml}"
+            }
+        }
+    }
+}`;
+
+    const json = {
+        "schem-planner": {
+            label: "📐 Baupläne & Stadtplanung",
+            toggleable: true,
+            defaultHidden: false,
+            sorting: 0,
+            markers: {
+                [`${id}_box`]: {
+                    type: "extrude",
+                    label: `${title} [3D Zone]`,
+                    position: { x: centerX, y: oy, z: centerZ },
+                    shapeY: oy,
+                    shape: [
+                        { x: ox, z: oz },
+                        { x: ox + effW, z: oz },
+                        { x: ox + effW, z: oz + effL },
+                        { x: ox, z: oz + effL }
+                    ],
+                    height: h,
+                    lineColor: { r: rgb.r, g: rgb.g, b: rgb.b, a: 1.0 },
+                    fillColor: { r: rgb.r, g: rgb.g, b: rgb.b, a: 0.28 },
+                    lineWidth: 2,
+                    detail: detailHtml.replace(/\\"/g, '"')
+                },
+                [`${id}_pin`]: {
+                    type: "poi",
+                    label: `${title} (${colorName})`,
+                    position: { x: centerX, y: topY + 1.5, z: centerZ },
+                    minDistance: 5,
+                    maxDistance: 25000,
+                    detail: detailHtml.replace(/\\"/g, '"')
+                }
+            }
+        }
+    };
+
+    return { hocon, jsonString: JSON.stringify(json, null, 2), id };
+}
+
+function openBlueMapModal() {
+    updateModalCode();
+    if (blueMapModal) {
+        blueMapModal.classList.add('open');
+    }
+}
+
+function closeBlueMapModal() {
+    if (blueMapModal) {
+        blueMapModal.classList.remove('open');
+    }
+}
+
+function setModalTab(tab) {
+    currentModalTab = tab;
+    if (tabModalHocon) tabModalHocon.classList.toggle('active', tab === 'hocon');
+    if (tabModalJson) tabModalJson.classList.toggle('active', tab === 'json');
+    updateModalCode();
+}
+
+function updateModalCode() {
+    if (!modalCodeContent) return;
+    const data = getProjectMarkerData();
+    modalCodeContent.textContent = currentModalTab === 'hocon' ? data.hocon : data.jsonString;
+}
+
+function copyModalCode() {
+    const data = getProjectMarkerData();
+    const textToCopy = currentModalTab === 'hocon' ? data.hocon : data.jsonString;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        if (btnModalCopy) {
+            const originalHtml = btnModalCopy.innerHTML;
+            btnModalCopy.innerHTML = '<span>✔</span> Kopiert!';
+            setTimeout(() => {
+                btnModalCopy.innerHTML = originalHtml;
+            }, 1800);
+        }
+    }).catch(err => {
+        console.error('Konnte Code nicht kopieren:', err);
+    });
+}
+
+function downloadModalFile() {
+    const data = getProjectMarkerData();
+    if (currentModalTab === 'hocon') {
+        const blob = new Blob([data.hocon], { type: 'text/plain' });
+        downloadBlob(blob, `kekwelt_${data.id}_markers.conf`);
+    } else {
+        const blob = new Blob([data.jsonString], { type: 'application/json' });
+        downloadBlob(blob, `markers_${data.id}.json`);
+    }
+}
+
