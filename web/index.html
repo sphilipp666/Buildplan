@@ -9,6 +9,15 @@
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
     <!-- Prismarine-NBT via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/prismarine-nbt@2.6.0/dist/index.min.js"></script>
+    <!-- Three.js Importmap for standard ES module resolution -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
 </head>
 <body>
     <div id="app-layout">
@@ -214,7 +223,31 @@
             <div id="canvas-container"></div>
 
             <div id="livemap-container">
-                <iframe id="bluemap-iframe" src="http://161.97.151.79:8100/#kekwelt" title="BlueMap Server Livemap" allowfullscreen></iframe>
+                <iframe id="bluemap-iframe" title="BlueMap Server Livemap" allowfullscreen style="display: none;"></iframe>
+                <div id="mixed-content-warning" class="mixed-content-banner" style="display: none;">
+                    <div class="banner-card">
+                        <span class="banner-icon">🛡️</span>
+                        <h2>Browser-Sicherheitshinweis (HTTPS / HTTP)</h2>
+                        <p>
+                            Diese Website läuft über verschlüsseltes <code>https://</code> (GitHub Pages).<br>
+                            Dein Minecraft-Server stellt BlueMap unter <code>http://161.97.151.79:8100</code> (ungesichertes HTTP) bereit.<br>
+                            Moderne Browser blockieren unverschlüsselte HTTP-iFrames innerhalb von HTTPS-Seiten (Mixed Content Security).
+                        </p>
+                        <div class="banner-actions">
+                            <a id="btn-banner-open-map" href="http://161.97.151.79:8100/#kekwelt" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                <span>🗺️</span> BlueMap im neuen Tab öffnen
+                            </a>
+                            <button id="btn-copy-map-url" class="btn btn-secondary">
+                                <span>📋</span> URL kopieren
+                            </button>
+                        </div>
+                        <div class="banner-tip">
+                            💡 <strong>Eingebettete Ansicht nutzen:</strong><br>
+                            • <strong>Lokal:</strong> Starte den Planer auf deinem PC mit <code>start-web.bat</code> (unter <code>http://localhost:8080</code>). Da beide über HTTP laufen, ist die Livemap direkt im Split-Screen nahtlos eingebettet!<br>
+                            • <strong>Online:</strong> Richte für deinen Server ein SSL-Zertifikat (HTTPS) ein (z.&nbsp;B. via Nginx Proxy Manager, Caddy oder Cloudflare Tunnel).
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Viewport Overlay HUD -->
